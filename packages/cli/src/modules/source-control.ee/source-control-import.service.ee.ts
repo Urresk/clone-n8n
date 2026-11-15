@@ -30,7 +30,12 @@ import glob from 'fast-glob';
 import isEqual from 'lodash/isEqual';
 import { Credentials, ErrorReporter, InstanceSettings } from 'n8n-core';
 import type { AutoPublishMode, INode } from 'n8n-workflow';
-import { shouldAutoPublishWorkflow, jsonParse } from 'n8n-workflow';
+import {
+	shouldAutoPublishWorkflow,
+	jsonParse,
+	pickVersionedSettings,
+	versionedSettingsEqual,
+} from 'n8n-workflow';
 import { OperationalError, UnexpectedError, UserError } from '@n8n/errors';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import path from 'path';
@@ -366,12 +371,15 @@ export class SourceControlImportService {
 		const remoteCredentialFilesRead = await mapInBatches(
 			remoteCredentialFiles,
 			SOURCE_CONTROL_READ_FILE_BATCH_SIZE,
-			async (file) => {
+			async (file): Promise<ExportableCredential | undefined> => {
 				this.logger.debug(`Parsing credential file ${file}`);
-				const remote = jsonParse<ExportableCredential>(
-					await fsReadFile(file, { encoding: 'utf8' }),
-				);
-				return remote;
+				const fileContent = await fsReadFile(file, { encoding: 'utf8' });
+				try {
+					return jsonParse<ExportableCredential>(fileContent);
+				} catch (error) {
+					this.logger.warn(`Failed to parse credential from file ${file}: invalid JSON format`);
+					return undefined;
+				}
 			},
 		);
 
@@ -724,23 +732,30 @@ export class SourceControlImportService {
 		const remoteProjects = await mapInBatches(
 			remoteProjectFiles,
 			SOURCE_CONTROL_READ_FILE_BATCH_SIZE,
-			async (file) => {
+			async (file): Promise<ExportableProjectWithFileName | undefined> => {
 				this.logger.debug(`Parsing project file ${file}`);
 				const fileContent = await fsReadFile(file, { encoding: 'utf8' });
-				const parsedProject = jsonParse<ExportableProject>(fileContent);
-
-				return {
-					...parsedProject,
-					filename: getProjectExportPath(parsedProject.id, this.projectExportFolder),
-				};
+				try {
+					const parsedProject = jsonParse<ExportableProject>(fileContent);
+					return {
+						...parsedProject,
+						filename: getProjectExportPath(parsedProject.id, this.projectExportFolder),
+					};
+				} catch (error) {
+					this.logger.warn(`Failed to parse project from file ${file}: invalid JSON format`);
+					return undefined;
+				}
 			},
 		);
 
+		const remoteProjectsParsed = remoteProjects.filter(
+			(remoteProject): remoteProject is ExportableProjectWithFileName => remoteProject !== undefined,
+		);
 		if (context.hasAccessToAllProjects()) {
-			return remoteProjects;
+			return remoteProjectsParsed;
 		}
 
-		return remoteProjects.filter((remoteProject) => {
+		return remoteProjectsParsed.filter((remoteProject) => {
 			return context.findAuthorizedProjectByOwner(remoteProject.owner);
 		});
 	}
@@ -867,7 +882,7 @@ export class SourceControlImportService {
 			this.logger.warn(`Workflow file ${candidate.file}: ${warning}`);
 		}
 
-		const { versionId, nodes, connections, id, owner, nodeGroups } = importedWorkflow;
+		const { versionId, nodes, connections, id, owner, nodeGroups, settings } = importedWorkflow;
 
 		if (!id || !versionId || !nodes || !connections) {
 			this.logger.error(
@@ -971,7 +986,7 @@ export class SourceControlImportService {
 
 		try {
 			await this.saveOrUpdateWorkflowHistory(
-				{ id, versionId, nodes, connections, nodeGroups },
+				{ id, versionId, nodes, connections, nodeGroups, settings },
 				userId,
 			);
 		} catch (error) {
@@ -2328,11 +2343,12 @@ export class SourceControlImportService {
 			nodes: IWorkflowToImport['nodes'];
 			connections: IWorkflowToImport['connections'];
 			nodeGroups: IWorkflowToImport['nodeGroups'];
+			settings: IWorkflowToImport['settings'];
 			id: string;
 		},
 		userId: string,
 	): Promise<void> {
-		const { versionId, nodes, connections, nodeGroups, id } = importedWorkflow;
+		const { versionId, nodes, connections, nodeGroups, settings, id } = importedWorkflow;
 
 		// Fetch user for author info
 		const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -2345,20 +2361,26 @@ export class SourceControlImportService {
 			const nodesChanged = !isEqual(existingVersion.nodes, nodes);
 			const connectionsChanged = !isEqual(existingVersion.connections, connections);
 			const nodeGroupsChanged = !isEqual(existingVersion.nodeGroups, nodeGroups);
+			const settingsChanged = !versionedSettingsEqual(existingVersion.settings, settings);
 
 			if (nodesChanged || connectionsChanged || nodeGroupsChanged) {
 				await this.workflowHistoryService.updateVersion(id, versionId, {
 					nodes,
 					connections,
 					nodeGroups,
+					settings: pickVersionedSettings(settings),
 					authors,
+				});
+			} else if (settingsChanged) {
+				await this.workflowHistoryService.updateVersion(id, versionId, {
+					settings: pickVersionedSettings(settings),
 				});
 			}
 		} else {
 			// Create new version history record
 			await this.workflowHistoryService.saveVersion(
 				authors,
-				{ versionId, nodes, connections, nodeGroups },
+				{ versionId, nodes, connections, nodeGroups, settings },
 				id,
 			);
 		}
