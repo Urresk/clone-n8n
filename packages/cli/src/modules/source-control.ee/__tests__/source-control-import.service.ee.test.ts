@@ -620,6 +620,49 @@ describe('SourceControlImportService', () => {
 			expect(result).toEqual([{ id: 'wf2', name: '/mock/wf2.json' }]);
 		});
 
+		it('should update only the picked settings when only workflow settings change', async () => {
+			// ARRANGE
+			const candidates = [mock<SourceControlledFile>({ file: '/mock/wf1.json', id: 'wf1' })];
+
+			projectRepository.getPersonalProjectForUserOrFail.mockResolvedValue(
+				Object.assign(new Project(), { id: 'project1', type: 'personal' }),
+			);
+			workflowRepository.findByIds.mockResolvedValue([]);
+			folderRepository.find.mockResolvedValue([]);
+			sharedWorkflowRepository.findWithFields.mockResolvedValue([]);
+			workflowRepository.upsertImportedContent.mockResolvedValue('wf1');
+
+			workflowHistoryService.findVersion.mockResolvedValue({
+				versionId: 'v1',
+				nodes: [],
+				connections: {},
+				settings: { engineType: 'classic' },
+			});
+
+			fsReadFile.mockResolvedValue(
+				JSON.stringify({
+					id: 'wf1',
+					name: 'Workflow',
+					nodes: [],
+					connections: {},
+					versionId: 'v1',
+					settings: { engineType: 'native' },
+				}),
+			);
+
+			// ACT
+			await service.importWorkflowFromWorkFolder(candidates, 'user1');
+
+			// ASSERT
+			expect(workflowHistoryService.updateVersion).toHaveBeenCalledTimes(1);
+			const [calledId, calledVersionId, payload] =
+				workflowHistoryService.updateVersion.mock.calls[0];
+			expect(calledId).toBe('wf1');
+			expect(calledVersionId).toBe('v1');
+			expect(Object.keys(payload)).toEqual(['settings']);
+			expect(payload.settings).toEqual(expect.objectContaining({ engineType: 'native' }));
+		});
+
 		it('should name a service account by its name in the history authors', async () => {
 			const candidates = [mock<SourceControlledFile>({ file: '/mock/wf1.json', id: 'wf1' })];
 
