@@ -1,5 +1,6 @@
 interface Overrides {
 	exclude: Record<string, string>;
+	flatten?: Record<string, string>;
 }
 
 export const overrides = {
@@ -17,6 +18,7 @@ export const overrides = {
 		connectPromotionCheckout: 'Not reviewed yet',
 		continueApplyPackage: 'Not reviewed yet',
 		continueApplyProjectSelection: 'Not reviewed yet',
+		createAgent: 'Not reviewed yet',
 		createCredential: 'Not reviewed yet',
 		createCredentialTypePolicyDocument: 'Not reviewed yet',
 		createDataTable: 'Not reviewed yet',
@@ -36,6 +38,7 @@ export const overrides = {
 		createVariable: 'Not reviewed yet',
 		createWorkflow: 'Not reviewed yet',
 		deactivateWorkflow: 'Not reviewed yet',
+		deleteAgent: 'Not reviewed yet',
 		deleteCredential: 'Not reviewed yet',
 		deleteCredentialTypePolicyDocument: 'Not reviewed yet',
 		deleteDataTable: 'Not reviewed yet',
@@ -180,5 +183,8 @@ export const overrides = {
 		updateWorkflow: 'Not reviewed yet',
 		updateWorkflowTags: 'Not reviewed yet',
 		upsertDataTableRow: 'Not reviewed yet',
+	},
+	flatten: {
+		addUsersToProject: 'relations',
 	},
 } satisfies Overrides;
