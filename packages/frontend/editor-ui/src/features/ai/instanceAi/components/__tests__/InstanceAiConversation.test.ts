@@ -352,9 +352,17 @@ describe('InstanceAiConversation', () => {
 		wrapper.findComponent({ name: 'N8nChatScrollArea' }).vm.$emit('load-older');
 	}
 
+	/**
+	 * Loads the last page, like the store does. jsdom keeps `scrollTop` at 0, so the
+	 * scroll area requests again after each load until no history is left.
+	 */
+	function loadLastPage() {
+		Object.assign(thread, { hasOlderMessages: false });
+	}
+
 	it('loads older messages when the scroll area reaches the top', async () => {
 		Object.assign(thread, { hasOlderMessages: true });
-		thread.loadOlderMessages = vi.fn(async () => {});
+		thread.loadOlderMessages = vi.fn(async () => loadLastPage());
 		const wrapper = mountConversation();
 
 		requestOlderMessages(wrapper);
@@ -380,7 +388,10 @@ describe('InstanceAiConversation', () => {
 		thread.loadOlderMessages = vi.fn(
 			async () =>
 				await new Promise<void>((resolve) => {
-					finishLoad = resolve;
+					finishLoad = () => {
+						loadLastPage();
+						resolve();
+					};
 				}),
 		);
 		const wrapper = mountConversation();
@@ -429,7 +440,7 @@ describe('InstanceAiConversation', () => {
 
 		requestOlderMessages(wrapper);
 		await flushPromises();
-		thread.loadOlderMessages = vi.fn(async () => {});
+		thread.loadOlderMessages = vi.fn(async () => loadLastPage());
 		await wrapper.find(`${retryNotice} button`).trigger('click');
 		await flushPromises();
 
