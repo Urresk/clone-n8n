@@ -1,5 +1,5 @@
 import { parseFlatted } from '@n8n/backend-common';
-import { EventService, ExecutionLedger } from '@n8n/backend-services';
+import { EventService, ExecutionLedger, ExecutionRetentionService } from '@n8n/backend-services';
 import { DatabaseConfig, ExecutionsConfig } from '@n8n/config';
 import { Time } from '@n8n/constants';
 import type {
@@ -115,6 +115,7 @@ export class ExecutionPersistence {
 		private readonly storageConfig: StorageConfig,
 		private readonly executionsConfig: ExecutionsConfig,
 		private readonly databaseConfig: DatabaseConfig,
+		private readonly retention: ExecutionRetentionService,
 		private readonly errorReporter: ErrorReporter,
 		private readonly eventService: EventService,
 		private readonly executionLedger: ExecutionLedger,
@@ -806,6 +807,8 @@ export class ExecutionPersistence {
 		const targets = Array.isArray(target) ? target : [target];
 		if (targets.length === 0) return;
 
+		await this.retention.assertCanDelete(targets.map((target) => target.executionId));
+
 		// Binaries first. A failure leaves the payload and the rows, so the execution stays openable.
 		await this.binaryDataService.deleteMany(
 			targets.map((t) => ({ type: 'execution' as const, ...t })),
@@ -1148,6 +1151,7 @@ export class ExecutionPersistence {
 		}
 
 		const where: FindOptionsWhere<ExecutionEntity> = { id: executionId };
+		if (conditions?.requireWaitTill) where.waitTill = conditions.requireWaitTill;
 		if (conditions?.requireStatus) where.status = conditions.requireStatus;
 		if (conditions?.requireStatuses) where.status = In([...conditions.requireStatuses]);
 		// TODO(CAT-3214): `ExecutionEntity.finished` is deprecated and we should rely on statuses

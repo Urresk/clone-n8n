@@ -23,6 +23,7 @@ import {
 	WAIT_INDEFINITELY,
 	WAIT_FOR_SUB_EXECUTION,
 	MAX_IN_PROCESS_WAIT_MS,
+	createRunExecutionData,
 } from 'n8n-workflow';
 import { UnexpectedError } from '@n8n/errors';
 import { Container } from '@n8n/di';
@@ -446,6 +447,80 @@ describe('ExecuteContext', () => {
 	});
 
 	describe('executeAgent', () => {
+		it('retains completed items and resumes the pending item after serialization', async () => {
+			const agentNode: INode = { ...node, type: 'n8n-nodes-base.messageAnAgent', typeVersion: 4 };
+			const invocationData: IExecuteData = {
+				node: agentNode,
+				metadata: {},
+				data: inputData,
+				source: null,
+			};
+			const state = createRunExecutionData();
+			const complete = {
+				response: 'done',
+				structuredOutput: { ok: true },
+				usage: null,
+				toolCalls: [],
+				finishReason: 'stop',
+				session: null,
+			};
+			const waiting = {
+				...complete,
+				waiting: { runId: 'run-2', executionIds: ['decision-2'] },
+			};
+			const runAgent = vi
+				.fn()
+				.mockResolvedValueOnce(complete)
+				.mockResolvedValueOnce(waiting)
+				.mockResolvedValue(complete);
+			const extra = mock<IWorkflowExecuteAdditionalData>({ executeAgent: runAgent });
+			const createContext = (
+				data: IExecuteData,
+				executionState = state,
+				contextRunIndex = runIndex,
+			) =>
+				new ExecuteContext(
+					workflow,
+					agentNode,
+					extra,
+					mode,
+					executionState,
+					contextRunIndex,
+					connectionInputData,
+					inputData,
+					data,
+					[closeFn],
+				);
+			const first = createContext(invocationData);
+			await first.executeAgent({ agentId: 'agent' }, 'first', 'parent', 0);
+			await first.executeAgent({ agentId: 'agent' }, 'second', 'parent', 1);
+			expect(state.waitTill).toEqual(WAIT_FOR_SUB_EXECUTION);
+			expect(invocationData.metadata?.waitingChildExecutionIds).toEqual(['decision-2']);
+			expect(invocationData.metadata).toEqual({
+				resumeMode: 'reexecute',
+				waitingChildExecutionIds: ['decision-2'],
+			});
+			const restoredState = structuredClone(state);
+			const resumed = createContext(structuredClone(invocationData), restoredState);
+			expect(await resumed.executeAgent({ agentId: 'agent' }, 'first', 'parent', 0)).toEqual(
+				complete,
+			);
+			await resumed.executeAgent({ agentId: 'agent' }, 'second', 'parent', 1);
+			await resumed.executeAgent({ agentId: 'agent' }, 'third', 'parent', 2);
+			expect(runAgent).toHaveBeenCalledTimes(4);
+			expect(runAgent.mock.calls[2][7]).toMatchObject({ continuation: waiting.waiting });
+			expect(runAgent.mock.calls[2][3]).toBe(runAgent.mock.calls[1][3]);
+			// A later run of the same node must not return the earlier run's cached result.
+			const nextRun = createContext(
+				{ ...invocationData, metadata: {} },
+				restoredState,
+				runIndex + 1,
+			);
+			await nextRun.executeAgent({ agentId: 'agent' }, 'new input', 'parent', 0);
+			expect(runAgent).toHaveBeenCalledTimes(5);
+			expect(runAgent.mock.calls[4][3]).not.toBe(runAgent.mock.calls[0][3]);
+		});
+
 		const webhookNode: INode = {
 			id: 'webhook-node-id',
 			name: 'Webhook',
