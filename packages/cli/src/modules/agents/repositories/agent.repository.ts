@@ -11,7 +11,6 @@ import type {
 	AgentVectorStoreProvider,
 	ListAgentsOptions,
 } from '@n8n/api-types';
-import { GlobalConfig } from '@n8n/config';
 import {
 	AgentTagMapping,
 	BaseRepository,
@@ -80,15 +79,9 @@ export class AgentRepository extends BaseRepository<Agent> {
 	constructor(
 		dataSource: DataSource,
 		transactionRunner: TransactionRunner,
-		private readonly globalConfig: GlobalConfig,
 		private readonly serviceAccountRepository: ServiceAccountRepository,
 	) {
 		super(Agent, dataSource.manager, transactionRunner);
-	}
-
-	/** Whether tags are readable on agents: reads join `agent.tags` only then. */
-	private get tagsEnabled(): boolean {
-		return !this.globalConfig.tags.disabled;
 	}
 
 	/**
@@ -289,9 +282,7 @@ export class AgentRepository extends BaseRepository<Agent> {
 			'activeVersion',
 		);
 
-		if (this.tagsEnabled) {
-			query.leftJoinAndSelect('agent.tags', 'tags');
-		}
+		query.leftJoinAndSelect('agent.tags', 'tags');
 
 		// Only cross-project consumers (MCP settings) label each agent by its home
 		// project; the overview lists don't read it, so they skip the extra join.
@@ -569,7 +560,7 @@ export class AgentRepository extends BaseRepository<Agent> {
 		return projectAgentOrNull(
 			await this.findOne({
 				where: { id, projectId, scope: projectScope },
-				relations: { activeVersion: true, ...(this.tagsEnabled ? { tags: true } : {}) },
+				relations: { activeVersion: true, tags: true },
 			}),
 		);
 	}
@@ -665,7 +656,7 @@ export class AgentRepository extends BaseRepository<Agent> {
 		return projectAgentOrNull(
 			await this.managerFor(ctx).findOne(Agent, {
 				where: { id, scope: projectScope },
-				relations: { activeVersion: true, ...(this.tagsEnabled ? { tags: true } : {}) },
+				relations: { activeVersion: true, tags: true },
 			}),
 		);
 	}
