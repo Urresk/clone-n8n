@@ -23,6 +23,7 @@ import {
 	WAIT_INDEFINITELY,
 	WAIT_FOR_SUB_EXECUTION,
 	MAX_IN_PROCESS_WAIT_MS,
+	createRunExecutionData,
 } from 'n8n-workflow';
 import { UnexpectedError } from '@n8n/errors';
 import { Container } from '@n8n/di';
@@ -454,7 +455,7 @@ describe('ExecuteContext', () => {
 				data: inputData,
 				source: null,
 			};
-			const state = mock<IRunExecutionData>();
+			const state = createRunExecutionData();
 			const complete = {
 				response: 'done',
 				structuredOutput: { ok: true },
@@ -473,14 +474,18 @@ describe('ExecuteContext', () => {
 				.mockResolvedValueOnce(waiting)
 				.mockResolvedValue(complete);
 			const extra = mock<IWorkflowExecuteAdditionalData>({ executeAgent: runAgent });
-			const createContext = (data: IExecuteData) =>
+			const createContext = (
+				data: IExecuteData,
+				executionState = state,
+				contextRunIndex = runIndex,
+			) =>
 				new ExecuteContext(
 					workflow,
 					agentNode,
 					extra,
 					mode,
-					state,
-					runIndex,
+					executionState,
+					contextRunIndex,
 					connectionInputData,
 					inputData,
 					data,
@@ -491,7 +496,12 @@ describe('ExecuteContext', () => {
 			await first.executeAgent({ agentId: 'agent' }, 'second', 'parent', 1);
 			expect(state.waitTill).toEqual(WAIT_FOR_SUB_EXECUTION);
 			expect(invocationData.metadata?.waitingChildExecutionIds).toEqual(['decision-2']);
-			const resumed = createContext(structuredClone(invocationData));
+			expect(invocationData.metadata).toEqual({
+				resumeMode: 'reexecute',
+				waitingChildExecutionIds: ['decision-2'],
+			});
+			const restoredState = structuredClone(state);
+			const resumed = createContext(structuredClone(invocationData), restoredState);
 			expect(await resumed.executeAgent({ agentId: 'agent' }, 'first', 'parent', 0)).toEqual(
 				complete,
 			);
@@ -500,6 +510,15 @@ describe('ExecuteContext', () => {
 			expect(runAgent).toHaveBeenCalledTimes(4);
 			expect(runAgent.mock.calls[2][7]).toMatchObject({ continuation: waiting.waiting });
 			expect(runAgent.mock.calls[2][3]).toBe(runAgent.mock.calls[1][3]);
+			// A later run of the same node must not return the earlier run's cached result.
+			const nextRun = createContext(
+				{ ...invocationData, metadata: {} },
+				restoredState,
+				runIndex + 1,
+			);
+			await nextRun.executeAgent({ agentId: 'agent' }, 'new input', 'parent', 0);
+			expect(runAgent).toHaveBeenCalledTimes(5);
+			expect(runAgent.mock.calls[4][3]).not.toBe(runAgent.mock.calls[0][3]);
 		});
 
 		const webhookNode: INode = {

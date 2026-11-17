@@ -102,16 +102,22 @@ consumed. Generic execution retention checks apply before pruning or deleting
 execution rows, JSON data, and binary data. Agents supplies the retained IDs;
 the shared execution repository does not query the Agents tables.
 
-Channel buttons use signed native callbacks. Responses must match the request's
+Channel buttons use signed native callbacks. A separate `ResponseWaitTracker` saves
+the node response and marks the execution due in one guarded write. It calls the
+unchanged core `WaitTracker` to resume. Core polling recovers a saved response if
+the immediate wake-up fails. This path does not use webhook handlers.
+
+Responses must match the request's
 Agent, project, run, thread, execution, connected credential, and destination.
 Repeated or late callbacks cannot change a resolved decision. An `agentApproval`
 parameter in user-authored workflow JSON does not create an approval job or grant
 permission to resume an Agent.
 
 Message an Agent version 4 processes items in order. It retains completed item
-results while an item is waiting. The whole workflow execution parks. On resume,
+results in node execution context while an item is waiting. The run index keeps
+separate runs of the node independent. The whole workflow execution parks. On resume,
 it restores the pending item, then processes the remaining items. Completed nodes
-remove this temporary invocation metadata. Full runtime snapshots stay in the
+remove this temporary invocation state. Full runtime snapshots stay in the
 protected Agent checkpoint, not in parent workflow task metadata or node output.
 
 ## Validation

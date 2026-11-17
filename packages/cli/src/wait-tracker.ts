@@ -7,7 +7,6 @@ import { ensureError } from '@n8n/utils/errors/ensure-error';
 import { sleep } from '@n8n/utils/sleep';
 import {
 	isTerminalExecutionStatus,
-	type INodeExecutionData,
 	type IRun,
 	type IWorkflowBase,
 	type IWorkflowExecutionDataProcess,
@@ -24,7 +23,6 @@ import { WorkflowPublisherService } from '@/workflows/workflow-publisher.service
 import { WorkflowRunner } from '@/workflow-runner';
 
 import {
-	preserveInputOverride,
 	shouldRestartParentExecution,
 	updateParentExecutionWithChildResults,
 } from './workflow-helpers';
@@ -148,10 +146,7 @@ export class WaitTracker {
 	}
 
 	/** Resolves `false` when the resume-attempt limit refuses the resume. */
-	async startExecution(
-		executionId: string,
-		nodeResponse?: { nodeId: string; data: INodeExecutionData[] },
-	): Promise<boolean> {
+	async startExecution(executionId: string): Promise<boolean> {
 		this.logger.debug(`Resuming execution ${executionId}`, { executionId });
 		delete this.waitingExecutions[executionId];
 
@@ -160,21 +155,18 @@ export class WaitTracker {
 		if (this.resuming.has(executionId)) throw new ExecutionAlreadyResumingError(executionId);
 		this.resuming.add(executionId);
 		try {
-			return await this.resumeExecution(executionId, nodeResponse);
+			return await this.resumeExecution(executionId);
 		} finally {
 			this.resuming.delete(executionId);
 		}
 	}
 
-	private async resumeExecution(
-		executionId: string,
-		nodeResponse?: { nodeId: string; data: INodeExecutionData[] },
-	): Promise<boolean> {
+	private async resumeExecution(executionId: string): Promise<boolean> {
 		const claim = await this.resumeAttemptService.claim(executionId, 'waiting');
 		if (!claim.granted) return false;
 
 		try {
-			await this.loadAndRun(executionId, nodeResponse);
+			await this.loadAndRun(executionId);
 			return true;
 		} catch (error) {
 			// A failure that repeats on every poll keeps its attempt, so the limit stops it
@@ -185,10 +177,7 @@ export class WaitTracker {
 		}
 	}
 
-	private async loadAndRun(
-		executionId: string,
-		nodeResponse?: { nodeId: string; data: INodeExecutionData[] },
-	) {
+	private async loadAndRun(executionId: string) {
 		// Get the data to execute
 		const fullExecutionData = await this.executionPersistence.findSingleExecution(executionId, {
 			includeData: true,
@@ -198,8 +187,6 @@ export class WaitTracker {
 		if (!fullExecutionData) {
 			throw new UnexpectedError('Execution does not exist.', { extra: { executionId } });
 		}
-		if (nodeResponse && fullExecutionData.status !== 'waiting')
-			throw new ExecutionAlreadyResumingError(executionId);
 		// oxlint-disable-next-line typescript/no-deprecated
 		if (fullExecutionData.finished) {
 			throw new UnexpectedError('The execution did succeed and can so not be started again.');
@@ -219,23 +206,6 @@ export class WaitTracker {
 			if (this.activeExecutions.has(executionId)) {
 				await this.activeExecutions.getPostExecutePromise(executionId);
 			}
-		}
-
-		if (nodeResponse) {
-			const entry = fullExecutionData.data.executionData?.nodeExecutionStack[0];
-			if (
-				fullExecutionData.data.waitReason === 'suspended' ||
-				!entry ||
-				entry.node.id !== nodeResponse.nodeId
-			)
-				throw new UserError('This request is no longer waiting for a response');
-			const runData = fullExecutionData.data.resultData.runData[entry.node.name];
-			if (!runData?.length) throw new UnexpectedError('The waiting node has no execution data');
-			// Resume the same node with the response, as the waiting-webhook path does.
-			preserveInputOverride(runData);
-			entry.node.disabled = true;
-			entry.data.main = [nodeResponse.data];
-			fullExecutionData.data.waitTill = undefined;
 		}
 
 		const workflowId = fullExecutionData.workflowData.id;

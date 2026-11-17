@@ -91,10 +91,10 @@ export class AgentChannelHitlService {
 		if (!platform.hitl.matchesResponse(node, event)) return 'unavailable';
 
 		const approved = reference.decision === 'a';
-		const { WaitTracker } = await import('@/wait-tracker.js');
+		const { ResponseWaitTracker } = await import('@/executions/response-wait-tracker.service.js');
 		let resumed: boolean;
 		try {
-			resumed = await Container.get(WaitTracker).startExecution(reference.executionId, {
+			resumed = await Container.get(ResponseWaitTracker).respond(reference.executionId, {
 				nodeId: node.id,
 				data: [
 					{
