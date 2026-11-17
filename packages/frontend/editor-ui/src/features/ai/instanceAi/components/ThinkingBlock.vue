@@ -29,13 +29,6 @@ const props = withDefaults(
 );
 
 const i18n = useI18n();
-
-function skillUpdateLabel(entry: Extract<InstanceAiTimelineEntry, { type: 'skill-update' }>) {
-	return entry.name
-		? i18n.baseText(`instanceAi.skillUpdate.${entry.change}`, { interpolate: { name: entry.name } })
-		: i18n.baseText(`instanceAi.skillUpdate.${entry.change}.unnamed`);
-}
-
 const { getToolLabel } = useToolLabel();
 const { getInstanceContextLabel } = useInstanceContextLabel();
 
@@ -69,7 +62,6 @@ const activityLabel = computed<string | undefined>(() => {
 
 	if (!props.active || props.awaitingInput) return undefined;
 	const last = props.entries[props.entries.length - 1];
-	if (last?.type === 'skill-update') return skillUpdateLabel(last);
 	return last?.type === 'instance-context' ? getInstanceContextLabel(last) : undefined;
 });
 
@@ -120,34 +112,6 @@ const durationSec = computed<number | undefined>(() => {
 			</div>
 
 			<InstanceContextStep v-else-if="entry.type === 'instance-context'" :entry="entry" />
-
-			<N8nAiActivityStep
-				v-else-if="entry.type === 'skill-update'"
-				:label="skillUpdateLabel(entry)"
-				data-test-id="instance-ai-skill-update"
-			>
-				<template v-if="entry.change !== 'unavailable' && entry.content !== undefined">
-					<ToolResultJson :value="{ skillId: entry.skillId, name: entry.name }" />
-					<ToolResultJson
-						:value="{
-							success: true,
-							skillId: entry.skillId,
-							name: entry.name,
-							hash: entry.version,
-							content: entry.content,
-						}"
-					/>
-				</template>
-				<p v-else :class="$style.thought">
-					{{
-						i18n.baseText(
-							entry.change === 'unavailable'
-								? 'instanceAi.skillUpdate.unavailable.description'
-								: 'instanceAi.skillUpdate.loaded.description',
-						)
-					}}
-				</p>
-			</N8nAiActivityStep>
 
 			<template v-else-if="entry.type === 'tool-call' && toolCallFor(entry)">
 				<!-- Auto mode ran this call without its approval card: say so, and why. -->
