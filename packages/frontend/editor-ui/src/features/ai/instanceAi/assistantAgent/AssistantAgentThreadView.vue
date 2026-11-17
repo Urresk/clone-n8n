@@ -71,7 +71,7 @@ import { formatAgentPreviewContextLabel } from '../instanceAi.handoffContext';
 import { useInstanceAiStore } from '../instanceAi.store';
 import { firstMessageTitle, threadTargetsAgent } from '../instanceAi.threadRuntime';
 import { useInstanceAiSettingsStore } from '../instanceAiSettings.store';
-import { buildThreadArtifactsContext } from '../threadArtifacts';
+import { buildThreadArtifactsContext, createDisplayedExecutionReader } from '../threadArtifacts';
 import { useCanvasPreview } from '../useCanvasPreview';
 import { toAgentPreviewComposerAttachment } from './assistantAgentPreviewHandoff';
 import {
@@ -223,6 +223,7 @@ function threadArtifactsContext(): Record<string, unknown> {
 		thread.producedArtifacts.values(),
 		activeId,
 		preview.openTabs.value,
+		createDisplayedExecutionReader(thread.artifactTurns, thread.getRememberedManualExecution),
 	);
 	return threadArtifacts ? { threadArtifacts } : {};
 }
