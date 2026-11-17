@@ -79,6 +79,9 @@ describe('MessageAnAgent Node', () => {
 
 	it('stops before later items when an invocation suspends', async () => {
 		mockParams();
+		executeFunctions.getNode.mockReturnValue({ ...executeFunctions.getNode(), typeVersion: 4 });
+		const context = { agentInvocations: { runIndex: 0, items: [] } };
+		executeFunctions.getContext.mockReturnValue(context);
 		executeFunctions.getInputData.mockReturnValue([
 			{ json: { item: 0 } },
 			{ json: { item: 1 } },
@@ -91,15 +94,19 @@ describe('MessageAnAgent Node', () => {
 		const result = await node.execute.call(executeFunctions);
 		expect(executeFunctions.executeAgent).toHaveBeenCalledTimes(2);
 		expect(result[0]).toHaveLength(1);
+		expect(context).toHaveProperty('agentInvocations');
 	});
 
 	it('drops temporary invocation results when version 4 finishes its items', async () => {
 		executeFunctions.getNode.mockReturnValue({ ...executeFunctions.getNode(), typeVersion: 4 });
+		const context = { agentInvocations: { runIndex: 0, items: [] }, otherState: 'preserved' };
+		executeFunctions.getContext.mockReturnValue(context);
 		executeFunctions.getInputData.mockReturnValue([{ json: {} }, { json: {} }]);
 		mockParams();
 		executeFunctions.executeAgent.mockResolvedValue(mockAgentResult);
 		await node.execute.call(executeFunctions);
-		expect(executeFunctions.setMetadata).toHaveBeenCalledWith({ agentInvocations: undefined });
+		expect(context).toEqual({ otherState: 'preserved' });
+		expect(executeFunctions.setMetadata).toHaveBeenCalledWith({ resumeMode: undefined });
 	});
 
 	it('should send a message and return the agent response', async () => {
