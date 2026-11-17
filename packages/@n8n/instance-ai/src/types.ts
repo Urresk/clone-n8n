@@ -2124,6 +2124,8 @@ export interface ServiceProxyConfig {
 	 * transparently refreshed during long-running agent turns.
 	 */
 	getAuthHeaders: () => Promise<Record<string, string>>;
+	/** Tags added to every span exported through the LangSmith proxy. Other proxies ignore them. */
+	traceTags?: string[];
 }
 
 // ── LangSmith tracing ────────────────────────────────────────────────────────
