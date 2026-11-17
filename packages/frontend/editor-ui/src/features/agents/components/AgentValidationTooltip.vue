@@ -144,6 +144,7 @@ const PUBLISH_SPECIFIC_ISSUE_KEYS: Record<string, BaseTextKey> = {
 
 const CAPABILITY_KEYS: Record<AgentCapabilityKind, BaseTextKey> = {
 	agent: 'agents.chat.misconfigured.missing.agent' as BaseTextKey,
+	humanReview: 'agents.hitl.title',
 	channel: 'agents.builder.triggers.title' as BaseTextKey,
 	tool: 'agents.chat.misconfigured.missing.tools' as BaseTextKey,
 	mcpServer: 'agents.chat.misconfigured.missing.mcpServers' as BaseTextKey,
@@ -224,6 +225,7 @@ function actionIssueMessage(
 	specificIssueKeys: Record<string, BaseTextKey>,
 ): string {
 	const { kind, toolType } = issue.capability;
+	if (kind === 'humanReview') return issueMessage(issue);
 	const pathKey = previewPathKey(issue);
 	const key =
 		(issue.reason ? reasonSpecificKeys[issue.reason] : undefined) ??
