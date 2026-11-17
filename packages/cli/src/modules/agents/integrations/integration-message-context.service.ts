@@ -105,16 +105,16 @@ export class IntegrationMessageContextService implements IntegrationMessageConte
 		messageId: string,
 		origin: SessionBinding,
 	): Promise<void> {
-		const existing = await this.threadRepository.findOneBy({ id: derivedThreadId });
-		const previous = this.parseMetadata(existing?.metadata)[SENT_MESSAGES_METADATA_KEY];
-		const entries = isRecord(previous) ? Object.entries(previous) : [];
-		const sentMessages = Object.fromEntries(
-			[...entries.filter(([id]) => id !== messageId), [messageId, origin]].slice(
-				-MAX_SENT_MESSAGES_PER_THREAD,
-			),
-		);
-		await this.writeMetadata(derivedThreadId, origin.resourceId, {
-			[SENT_MESSAGES_METADATA_KEY]: sentMessages,
+		await this.writeMetadata(derivedThreadId, origin.resourceId, (metadata) => {
+			const previous = metadata[SENT_MESSAGES_METADATA_KEY];
+			const entries = isRecord(previous) ? Object.entries(previous) : [];
+			return {
+				[SENT_MESSAGES_METADATA_KEY]: Object.fromEntries(
+					[...entries.filter(([id]) => id !== messageId), [messageId, origin]].slice(
+						-MAX_SENT_MESSAGES_PER_THREAD,
+					),
+				),
+			};
 		});
 	}
 
@@ -142,87 +142,54 @@ export class IntegrationMessageContextService implements IntegrationMessageConte
 			: [];
 		if (bound.length === 0) return;
 		for (const id of bound) await this.unbindSession(id);
-		metadata[BOUND_THREADS_METADATA_KEY] = [];
-		if (existing) {
-			existing.metadata = JSON.stringify(metadata);
-			await this.threadRepository.save(existing);
-		}
+		await this.writeMetadata(originThreadId, undefined, { [BOUND_THREADS_METADATA_KEY]: [] });
 	}
 
 	private async writeContinueAsIfAbsent(
 		derivedThreadId: string,
 		origin: SessionBinding,
 	): Promise<void> {
-		const existing = await this.threadRepository.findOneBy({ id: derivedThreadId });
-		const metadata = this.parseMetadata(existing?.metadata);
-		if (isSessionBinding(metadata[CONTINUE_AS_METADATA_KEY])) return;
-		metadata[CONTINUE_AS_METADATA_KEY] = origin;
-		if (existing) {
-			existing.metadata = JSON.stringify(metadata);
-			await this.threadRepository.save(existing);
-			return;
-		}
-		await this.resourceRepository.ensureExists(origin.resourceId);
-		await this.threadRepository.save(
-			this.threadRepository.create({
-				id: derivedThreadId,
-				resourceId: origin.resourceId,
-				title: null,
-				metadata: JSON.stringify(metadata),
-			}),
+		await this.writeMetadata(derivedThreadId, origin.resourceId, (metadata) =>
+			isSessionBinding(metadata[CONTINUE_AS_METADATA_KEY])
+				? null
+				: { [CONTINUE_AS_METADATA_KEY]: origin },
 		);
 	}
 
 	private async appendBoundThread(originThreadId: string, derivedThreadId: string): Promise<void> {
-		const existing = await this.threadRepository.findOneBy({ id: originThreadId });
-		const metadata = this.parseMetadata(existing?.metadata);
-		const bound = Array.isArray(metadata[BOUND_THREADS_METADATA_KEY])
-			? (metadata[BOUND_THREADS_METADATA_KEY] as string[]).filter((id) => id !== derivedThreadId)
-			: [];
-		bound.push(derivedThreadId);
-		metadata[BOUND_THREADS_METADATA_KEY] = bound;
-		if (existing) {
-			existing.metadata = JSON.stringify(metadata);
-			await this.threadRepository.save(existing);
-			return;
-		}
-		await this.resourceRepository.ensureExists(originThreadId);
-		await this.threadRepository.save(
-			this.threadRepository.create({
-				id: originThreadId,
-				resourceId: originThreadId,
-				title: null,
-				metadata: JSON.stringify(metadata),
-			}),
-		);
+		await this.writeMetadata(originThreadId, originThreadId, (metadata) => {
+			const previous = metadata[BOUND_THREADS_METADATA_KEY];
+			const bound = Array.isArray(previous) ? previous.filter((id) => id !== derivedThreadId) : [];
+			return { [BOUND_THREADS_METADATA_KEY]: [...bound, derivedThreadId] };
+		});
 	}
 
 	private async writeMetadata(
 		threadId: string,
 		resourceId: string | undefined,
-		patch: Record<string, unknown>,
+		patch:
+			| Record<string, unknown>
+			| ((metadata: Record<string, unknown>) => Record<string, unknown> | null),
 	): Promise<void> {
-		const existing = await this.threadRepository.findOneBy({ id: threadId });
-		const metadata = {
-			...this.parseMetadata(existing?.metadata),
-			...patch,
+		const merge = (value: string | null | undefined) => {
+			const metadata = this.parseMetadata(value);
+			const update = typeof patch === 'function' ? patch(metadata) : patch;
+			return update ? JSON.stringify({ ...metadata, ...update }) : null;
 		};
-
-		if (existing) {
-			existing.metadata = JSON.stringify(metadata);
-			await this.threadRepository.save(existing);
-			return;
-		}
-
+		const write = async () =>
+			await this.threadRepository.patchThread(
+				threadId,
+				(row) => {
+					const metadata = merge(row.metadata);
+					return metadata === null ? null : { metadata };
+				},
+				{},
+			);
+		if (await write()) return;
+		if (merge(null) === null) return;
 		await this.resourceRepository.ensureExists(resourceId ?? threadId);
-		await this.threadRepository.save(
-			this.threadRepository.create({
-				id: threadId,
-				resourceId: resourceId ?? threadId,
-				title: null,
-				metadata: JSON.stringify(metadata),
-			}),
-		);
+		await this.threadRepository.ensureExists(threadId, resourceId ?? threadId);
+		await write();
 	}
 
 	private parseMetadata(value: string | null | undefined): Record<string, unknown> {
