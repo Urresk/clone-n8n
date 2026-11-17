@@ -620,6 +620,49 @@ describe('SourceControlImportService', () => {
 			expect(result).toEqual([{ id: 'wf2', name: '/mock/wf2.json' }]);
 		});
 
+		it('should update only the picked settings when only workflow settings change', async () => {
+			// ARRANGE
+			const candidates = [mock<SourceControlledFile>({ file: '/mock/wf1.json', id: 'wf1' })];
+
+			projectRepository.getPersonalProjectForUserOrFail.mockResolvedValue(
+				Object.assign(new Project(), { id: 'project1', type: 'personal' }),
+			);
+			workflowRepository.findByIds.mockResolvedValue([]);
+			folderRepository.find.mockResolvedValue([]);
+			sharedWorkflowRepository.findWithFields.mockResolvedValue([]);
+			workflowRepository.upsertImportedContent.mockResolvedValue('wf1');
+
+			workflowHistoryService.findVersion.mockResolvedValue({
+				versionId: 'v1',
+				nodes: [],
+				connections: {},
+				settings: { engineType: 'classic' },
+			});
+
+			fsReadFile.mockResolvedValue(
+				JSON.stringify({
+					id: 'wf1',
+					name: 'Workflow',
+					nodes: [],
+					connections: {},
+					versionId: 'v1',
+					settings: { engineType: 'native' },
+				}),
+			);
+
+			// ACT
+			await service.importWorkflowFromWorkFolder(candidates, 'user1');
+
+			// ASSERT
+			expect(workflowHistoryService.updateVersion).toHaveBeenCalledTimes(1);
+			const [calledId, calledVersionId, payload] =
+				workflowHistoryService.updateVersion.mock.calls[0];
+			expect(calledId).toBe('wf1');
+			expect(calledVersionId).toBe('v1');
+			expect(Object.keys(payload)).toEqual(['settings']);
+			expect(payload.settings).toEqual(expect.objectContaining({ engineType: 'native' }));
+		});
+
 		it('should name a service account by its name in the history authors', async () => {
 			const candidates = [mock<SourceControlledFile>({ file: '/mock/wf1.json', id: 'wf1' })];
 
@@ -1925,6 +1968,24 @@ describe('SourceControlImportService', () => {
 					name: 'Test Credential',
 					type: 'oauth2',
 				}),
+			);
+		});
+
+		it('should skip credential files with invalid JSON', async () => {
+			// ARRANGE
+			globMock.mockResolvedValue(['/mock/credential_good.json', '/mock/credential_bad.json']);
+			fsReadFile.mockImplementation(async (file: string) =>
+				file.includes('bad') ? 'not json' : JSON.stringify({ id: 'cred1', name: 'Good', type: 'oauth2' }),
+			);
+
+			// ACT
+			const result = await service.getRemoteCredentialsFromFiles(globalAdminContext);
+
+			// ASSERT
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual(expect.objectContaining({ id: 'cred1' }));
+			expect(mockLogger.warn).toHaveBeenCalledWith(
+				expect.stringContaining('credential_bad.json'),
 			);
 		});
 
@@ -4083,6 +4144,22 @@ describe('SourceControlImportService', () => {
 				},
 				variableStubs: [{ id: 'var1', key: 'VAR1', value: 'value1', type: 'string' }],
 			};
+
+			it('should skip project files with invalid JSON', async () => {
+				// ARRANGE
+				globMock.mockResolvedValue(['project_good.json', 'project_bad.json']);
+				fsReadFile
+					.mockResolvedValueOnce(JSON.stringify(mockProjectData1))
+					.mockResolvedValueOnce('not json');
+
+				// ACT
+				const result = await service.getRemoteProjectsFromFiles(globalAdminContext);
+
+				// ASSERT
+				expect(result).toHaveLength(1);
+				expect(result[0].id).toBe(mockProjectData1.id);
+				expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('project_bad.json'));
+			});
 
 			it('should return all projects if the user has access to all projects', async () => {
 				// ARRANGE
