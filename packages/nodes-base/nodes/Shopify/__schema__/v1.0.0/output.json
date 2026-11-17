@@ -1,0 +1,194 @@
+{
+	"properties": {
+		"admin_graphql_api_id": {
+			"type": "string"
+		},
+		"body_html": {
+			"type": "string"
+		},
+		"created_at": {
+			"type": "string"
+		},
+		"handle": {
+			"type": "string"
+		},
+		"id": {
+			"type": "number"
+		},
+		"image": {
+			"properties": {
+				"admin_graphql_api_id": {
+					"type": "string"
+				},
+				"alt": {},
+				"created_at": {
+					"type": "string"
+				},
+				"height": {
+					"type": "number"
+				},
+				"id": {
+					"type": "number"
+				},
+				"position": {
+					"type": "number"
+				},
+				"product_id": {
+					"type": "number"
+				},
+				"src": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string"
+				},
+				"variant_ids": {
+					"items": {
+						"type": "number"
+					},
+					"type": "array"
+				},
+				"width": {
+					"type": "number"
+				}
+			},
+			"type": ["null", "object"]
+		},
+		"images": {
+			"items": {
+				"properties": {
+					"admin_graphql_api_id": {
+						"type": "string"
+					},
+					"alt": {},
+					"created_at": {
+						"type": "string"
+					},
+					"height": {
+						"type": "number"
+					},
+					"id": {
+						"type": "number"
+					},
+					"position": {
+						"type": "number"
+					},
+					"product_id": {
+						"type": "number"
+					},
+					"src": {
+						"type": "string"
+					},
+					"updated_at": {
+						"type": "string"
+					},
+					"variant_ids": {
+						"items": {
+							"type": "number"
+						},
+						"type": "array"
+					},
+					"width": {
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"type": "array"
+		},
+		"status": {
+			"type": "string"
+		},
+		"tags": {
+			"type": "string"
+		},
+		"title": {
+			"type": "string"
+		},
+		"updated_at": {
+			"type": "string"
+		},
+		"variants": {
+			"items": {
+				"properties": {
+					"admin_graphql_api_id": {
+						"type": "string"
+					},
+					"barcode": {
+						"type": ["null", "string"]
+					},
+					"barcodes": {
+						"items": {
+							"properties": {
+								"type": {},
+								"value": {
+									"type": "string"
+								}
+							},
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"compare_at_price": {
+						"type": ["null", "string"]
+					},
+					"created_at": {
+						"type": "string"
+					},
+					"id": {
+						"type": "number"
+					},
+					"image_id": {
+						"type": ["null", "number"]
+					},
+					"inventory_item_id": {
+						"type": "number"
+					},
+					"inventory_policy": {
+						"type": "string"
+					},
+					"inventory_quantity": {
+						"type": "number"
+					},
+					"old_inventory_quantity": {
+						"type": "number"
+					},
+					"option1": {
+						"type": "string"
+					},
+					"option2": {
+						"type": ["null", "string"]
+					},
+					"option3": {},
+					"position": {
+						"type": "number"
+					},
+					"price": {
+						"type": "string"
+					},
+					"product_id": {
+						"type": "number"
+					},
+					"sku": {
+						"type": ["null", "string"]
+					},
+					"taxable": {
+						"type": "boolean"
+					},
+					"title": {
+						"type": "string"
+					},
+					"updated_at": {
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"type": "array"
+		},
+		"vendor": {
+			"type": "string"
+		}
+	},
+	"type": "object"
+}

@@ -1,0 +1,235 @@
+{
+	"additionalProperties": true,
+	"properties": {
+		"AccountNumber": {},
+		"AccountSource": {
+			"type": ["null", "string"]
+		},
+		"AnnualRevenue": {
+			"type": ["null", "number"]
+		},
+		"attributes": {
+			"properties": {
+				"type": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			},
+			"type": "object"
+		},
+		"BillingAddress": {
+			"properties": {
+				"city": {
+					"type": ["null", "string"]
+				},
+				"country": {
+					"type": ["null", "string"]
+				},
+				"countryCode": {
+					"type": "string"
+				},
+				"geocodeAccuracy": {
+					"type": ["null", "string"]
+				},
+				"latitude": {
+					"type": ["null", "number"]
+				},
+				"longitude": {
+					"type": ["null", "number"]
+				},
+				"postalCode": {
+					"type": ["null", "string"]
+				},
+				"state": {
+					"type": ["null", "string"]
+				},
+				"stateCode": {
+					"type": ["null", "string"]
+				},
+				"street": {
+					"type": ["null", "string"]
+				}
+			},
+			"type": ["null", "object"]
+		},
+		"BillingCity": {
+			"type": ["null", "string"]
+		},
+		"BillingCountry": {
+			"type": ["null", "string"]
+		},
+		"BillingCountryCode": {
+			"type": ["null", "string"]
+		},
+		"BillingGeocodeAccuracy": {
+			"type": ["null", "string"]
+		},
+		"BillingLatitude": {
+			"type": ["null", "number"]
+		},
+		"BillingLongitude": {
+			"type": ["null", "number"]
+		},
+		"BillingPostalCode": {
+			"type": ["null", "string"]
+		},
+		"BillingState": {
+			"type": ["null", "string"]
+		},
+		"BillingStateCode": {
+			"type": ["null", "string"]
+		},
+		"BillingStreet": {
+			"type": ["null", "string"]
+		},
+		"CreatedById": {
+			"type": "string"
+		},
+		"CreatedDate": {
+			"type": "string"
+		},
+		"CurrencyIsoCode": {
+			"type": "string"
+		},
+		"Description": {
+			"type": ["null", "string"]
+		},
+		"Fax": {
+			"type": ["null", "string"]
+		},
+		"Id": {
+			"type": "string"
+		},
+		"Industry": {
+			"type": ["null", "string"]
+		},
+		"IsCustomerPortal": {
+			"type": "boolean"
+		},
+		"IsDeleted": {
+			"type": "boolean"
+		},
+		"Jigsaw": {},
+		"JigsawCompanyId": {},
+		"LastActivityDate": {
+			"type": ["null", "string"]
+		},
+		"LastModifiedById": {
+			"type": "string"
+		},
+		"LastModifiedDate": {
+			"type": "string"
+		},
+		"LastReferencedDate": {
+			"type": ["null", "string"]
+		},
+		"LastViewedDate": {
+			"type": ["null", "string"]
+		},
+		"MasterRecordId": {},
+		"Name": {
+			"type": "string"
+		},
+		"NumberOfEmployees": {
+			"type": ["null", "number"]
+		},
+		"OwnerId": {
+			"type": "string"
+		},
+		"Ownership": {},
+		"ParentId": {
+			"type": ["null", "string"]
+		},
+		"Phone": {
+			"type": ["null", "string"]
+		},
+		"PhotoUrl": {
+			"type": "string"
+		},
+		"Rating": {},
+		"RecordTypeId": {
+			"type": ["null", "string"]
+		},
+		"ShippingAddress": {
+			"properties": {
+				"city": {
+					"type": ["null", "string"]
+				},
+				"country": {
+					"type": ["null", "string"]
+				},
+				"countryCode": {
+					"type": "string"
+				},
+				"geocodeAccuracy": {
+					"type": ["null", "string"]
+				},
+				"latitude": {
+					"type": ["null", "number"]
+				},
+				"longitude": {
+					"type": ["null", "number"]
+				},
+				"postalCode": {
+					"type": ["null", "string"]
+				},
+				"state": {
+					"type": ["null", "string"]
+				},
+				"stateCode": {
+					"type": ["null", "string"]
+				},
+				"street": {
+					"type": ["null", "string"]
+				}
+			},
+			"type": ["null", "object"]
+		},
+		"ShippingCity": {
+			"type": ["null", "string"]
+		},
+		"ShippingCountry": {
+			"type": ["null", "string"]
+		},
+		"ShippingGeocodeAccuracy": {
+			"type": ["null", "string"]
+		},
+		"ShippingLatitude": {
+			"type": ["null", "number"]
+		},
+		"ShippingLongitude": {
+			"type": ["null", "number"]
+		},
+		"ShippingPostalCode": {
+			"type": ["null", "string"]
+		},
+		"ShippingState": {
+			"type": ["null", "string"]
+		},
+		"ShippingStreet": {
+			"type": ["null", "string"]
+		},
+		"Sic": {
+			"type": ["null", "string"]
+		},
+		"SicDesc": {},
+		"Site": {
+			"type": ["null", "string"]
+		},
+		"SystemModstamp": {
+			"type": "string"
+		},
+		"TickerSymbol": {
+			"type": ["null", "string"]
+		},
+		"Type": {
+			"type": ["null", "string"]
+		},
+		"Website": {
+			"type": ["null", "string"]
+		}
+	},
+	"type": "object"
+}

@@ -1,0 +1,88 @@
+{
+	"properties": {
+		"ok": {
+			"type": "boolean"
+		},
+		"result": {
+			"properties": {
+				"chat": {
+					"properties": {
+						"first_name": {
+							"type": "string"
+						},
+						"id": {
+							"type": "number"
+						},
+						"type": {
+							"type": "string"
+						}
+					},
+					"type": "object"
+				},
+				"date": {
+					"type": "number"
+				},
+				"from": {
+					"properties": {
+						"first_name": {
+							"type": "string"
+						},
+						"id": {
+							"type": "number"
+						},
+						"is_bot": {
+							"type": "boolean"
+						},
+						"username": {
+							"type": "string"
+						}
+					},
+					"type": "object"
+				},
+				"message_id": {
+					"type": "number"
+				},
+				"rich_message": {
+					"properties": {
+						"blocks": {
+							"items": {
+								"properties": {
+									"text": {
+										"items": {
+											"properties": {
+												"text": {
+													"type": "string"
+												},
+												"type": {
+													"type": "string"
+												}
+											},
+											"type": ["object", "string"]
+										},
+										"properties": {
+											"text": {
+												"type": "string"
+											},
+											"type": {
+												"type": "string"
+											}
+										},
+										"type": ["array", "object", "string"]
+									},
+									"type": {
+										"type": "string"
+									}
+								},
+								"type": "object"
+							},
+							"type": "array"
+						}
+					},
+					"type": "object"
+				}
+			},
+			"type": "object"
+		}
+	},
+	"type": "object"
+}

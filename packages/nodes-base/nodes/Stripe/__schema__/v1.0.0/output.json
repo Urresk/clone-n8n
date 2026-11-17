@@ -1,0 +1,86 @@
+{
+	"properties": {
+		"api_version": {
+			"type": "string"
+		},
+		"created": {
+			"type": "number"
+		},
+		"data": {
+			"properties": {
+				"object": {
+					"properties": {
+						"amount": {
+							"type": "number"
+						},
+						"application": {},
+						"application_fee_amount": {},
+						"created": {
+							"type": "number"
+						},
+						"currency": {
+							"type": "string"
+						},
+						"customer": {
+							"type": ["null", "string"]
+						},
+						"description": {
+							"type": ["null", "string"]
+						},
+						"id": {
+							"type": "string"
+						},
+						"livemode": {
+							"type": "boolean"
+						},
+						"metadata": {
+							"type": "object"
+						},
+						"object": {
+							"type": "string"
+						},
+						"on_behalf_of": {},
+						"payment_intent": {
+							"type": ["null", "string"]
+						},
+						"shipping": {},
+						"statement_descriptor": {},
+						"status": {
+							"type": "string"
+						},
+						"transfer_data": {}
+					},
+					"type": "object"
+				}
+			},
+			"type": "object"
+		},
+		"id": {
+			"type": "string"
+		},
+		"livemode": {
+			"type": "boolean"
+		},
+		"object": {
+			"type": "string"
+		},
+		"pending_webhooks": {
+			"type": "number"
+		},
+		"request": {
+			"properties": {
+				"id": {
+					"type": ["null", "string"]
+				},
+				"idempotency_key": {
+					"type": ["null", "string"]
+				}
+			},
+			"type": ["null", "object"]
+		},
+		"type": {
+			"type": "string"
+		}
+	},
+	"type": "object"
+}

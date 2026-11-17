@@ -1,0 +1,207 @@
+{
+	"additionalProperties": true,
+	"properties": {
+		"ActivityMetricId": {
+			"type": ["null", "string"]
+		},
+		"Address": {
+			"properties": {
+				"city": {
+					"type": ["null", "string"]
+				},
+				"country": {
+					"type": ["null", "string"]
+				},
+				"geocodeAccuracy": {},
+				"latitude": {
+					"type": ["null", "number"]
+				},
+				"longitude": {
+					"type": ["null", "number"]
+				},
+				"postalCode": {
+					"type": ["null", "string"]
+				},
+				"state": {
+					"type": ["null", "string"]
+				},
+				"street": {
+					"type": ["null", "string"]
+				}
+			},
+			"type": ["null", "object"]
+		},
+		"AnnualRevenue": {
+			"type": ["null", "number"]
+		},
+		"attributes": {
+			"properties": {
+				"type": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			},
+			"type": "object"
+		},
+		"City": {
+			"type": ["null", "string"]
+		},
+		"Company": {
+			"type": "string"
+		},
+		"ConvertedAccountId": {
+			"type": ["null", "string"]
+		},
+		"ConvertedContactId": {
+			"type": ["null", "string"]
+		},
+		"ConvertedDate": {
+			"type": ["null", "string"]
+		},
+		"ConvertedOpportunityId": {},
+		"Country": {
+			"type": ["null", "string"]
+		},
+		"CreatedById": {
+			"type": "string"
+		},
+		"CreatedDate": {
+			"type": "string"
+		},
+		"CurrencyIsoCode": {
+			"type": "string"
+		},
+		"Description": {
+			"type": ["null", "string"]
+		},
+		"DoNotCall": {
+			"type": "boolean"
+		},
+		"Email": {
+			"type": ["null", "string"]
+		},
+		"EmailBouncedDate": {
+			"type": ["null", "string"]
+		},
+		"EmailBouncedReason": {
+			"type": ["null", "string"]
+		},
+		"Fax": {},
+		"FirstName": {
+			"type": ["null", "string"]
+		},
+		"GCLID__c": {
+			"type": ["null", "string"]
+		},
+		"GeocodeAccuracy": {},
+		"HasOptedOutOfEmail": {
+			"type": "boolean"
+		},
+		"HasOptedOutOfFax": {
+			"type": "boolean"
+		},
+		"Id": {
+			"type": "string"
+		},
+		"IndividualId": {},
+		"Industry": {
+			"type": ["null", "string"]
+		},
+		"IsConverted": {
+			"type": "boolean"
+		},
+		"IsDeleted": {
+			"type": "boolean"
+		},
+		"IsPriorityRecord": {
+			"type": "boolean"
+		},
+		"IsUnreadByOwner": {
+			"type": "boolean"
+		},
+		"Jigsaw": {},
+		"JigsawContactId": {},
+		"LastActivityDate": {
+			"type": ["null", "string"]
+		},
+		"LastModifiedById": {
+			"type": "string"
+		},
+		"LastModifiedDate": {
+			"type": "string"
+		},
+		"LastName": {
+			"type": "string"
+		},
+		"LastReferencedDate": {
+			"type": ["null", "string"]
+		},
+		"LastTransferDate": {
+			"type": "string"
+		},
+		"LastViewedDate": {
+			"type": ["null", "string"]
+		},
+		"Latitude": {
+			"type": ["null", "number"]
+		},
+		"LeadSource": {
+			"type": ["null", "string"]
+		},
+		"Longitude": {
+			"type": ["null", "number"]
+		},
+		"MasterRecordId": {},
+		"MobilePhone": {
+			"type": ["null", "string"]
+		},
+		"Name": {
+			"type": "string"
+		},
+		"NumberOfEmployees": {
+			"type": ["null", "number"]
+		},
+		"OwnerId": {
+			"type": "string"
+		},
+		"Phone": {
+			"type": ["null", "string"]
+		},
+		"PhotoUrl": {
+			"type": "string"
+		},
+		"PostalCode": {
+			"type": ["null", "string"]
+		},
+		"Rating": {
+			"type": ["null", "string"]
+		},
+		"RecordTypeId": {
+			"type": "string"
+		},
+		"Salutation": {
+			"type": ["null", "string"]
+		},
+		"State": {
+			"type": ["null", "string"]
+		},
+		"Status": {
+			"type": "string"
+		},
+		"Street": {
+			"type": ["null", "string"]
+		},
+		"SystemModstamp": {
+			"type": "string"
+		},
+		"Title": {
+			"type": ["null", "string"]
+		},
+		"Website": {
+			"type": ["null", "string"]
+		}
+	},
+	"type": "object"
+}
