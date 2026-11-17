@@ -308,6 +308,7 @@ export type {
 	AgentTargetsMetadata,
 } from './tools/orchestration/agent-target-binding';
 export { parseAppTargets, parsePendingAppTarget } from './tools/apps/app-target-binding';
+export { withThreadSubject } from './tools/thread-subject-binding';
 export {
 	resolveAgentPreviewSession,
 	saveAgentPreviewSession,
