@@ -27,6 +27,11 @@ import { useAgentChannelRemoval } from '../composables/useAgentChannelRemoval';
 import { useN8nChatChannel } from '../channels/n8nChat/useN8nChatChannel';
 import { useAgentIntegrationsCatalog } from '../composables/useAgentIntegrationsCatalog';
 import { useAgentIntegrationStatus } from '../composables/useAgentIntegrationStatus';
+import {
+	MENTION_CHANNEL_TYPES,
+	useAgentIntegrationAccounts,
+} from '../composables/useAgentIntegrationAccounts';
+import { useAgentTriggerRedesignFlag } from '../composables/useAgentTriggerRedesignFlag';
 import { resolveAgentValidationIssueMessageKey } from '../utils/agentValidationIssueMessages';
 import AgentChannelModal, { type ChannelView } from './AgentChannelModal.vue';
 import AgentChipButton from './AgentChipButton.vue';
@@ -35,6 +40,8 @@ import { useWhatsAppMetaStatus } from '../channels/whatsapp/useWhatsAppMetaStatu
 import AgentChipRow from './AgentChipRow.vue';
 import AgentItemContextMenu from './AgentItemContextMenu.vue';
 import AgentSchedulesRow from './AgentSchedulesRow.vue';
+import AgentTriggersList from './AgentTriggersList.vue';
+import type { AgentTriggerChannelItem } from './AgentTriggersList.types';
 import N8nChatHintPopover from './N8nChatHintPopover.vue';
 import { fileAccessJustApproved } from '../channels/teams/fileAccessConsent';
 
@@ -82,6 +89,7 @@ const emit = defineEmits<{
 }>();
 
 const i18n = useI18n();
+const isTriggerRedesignEnabled = useAgentTriggerRedesignFlag();
 const credentialsStore = useCredentialsStore();
 const { catalog, ensureLoaded } = useAgentIntegrationsCatalog();
 const integrationStatus = useAgentIntegrationStatus(props.projectId, props.agentId);
@@ -165,6 +173,49 @@ const { isEnabled: isN8nChatEnabled, withN8nChat } = useN8nChatChannel();
 const channelList = computed(() => withN8nChat(catalog.value ?? []));
 
 const credentialNamesById = ref<Record<string, string>>({});
+const { getAccount, loadAccount } = useAgentIntegrationAccounts();
+
+/**
+ * Says how users reach the agent. The platform name shows on its own line, so
+ * it is not part of this text. Falls back to less detail when the platform does not say.
+ */
+function channelMentionLabel(channel: string): string | undefined {
+	if (!MENTION_CHANNEL_TYPES.includes(channel)) return undefined;
+	const account = getAccount({
+		agentId: props.agentId,
+		type: channel,
+		credentialId: connectedCredentials.value[channel],
+	});
+	const bot = account?.botName;
+	const workspaces = account?.workspaceNames ?? [];
+	if (!bot) {
+		return i18n.baseText('agents.builder.triggers.channel.mention');
+	}
+	if (workspaces.length === 1) {
+		return i18n.baseText('agents.builder.triggers.channel.mention.botInWorkspace', {
+			interpolate: { bot, workspace: workspaces[0] },
+		});
+	}
+	if (workspaces.length > 1) {
+		return i18n.baseText('agents.builder.triggers.channel.mention.botInServers', {
+			interpolate: { bot, count: String(workspaces.length) },
+		});
+	}
+	return i18n.baseText('agents.builder.triggers.channel.mention.bot', {
+		interpolate: { bot },
+	});
+}
+
+watch(
+	connectedCredentials,
+	(credentials) => {
+		if (props.agentUnsaved) return;
+		for (const [type, credentialId] of Object.entries(credentials)) {
+			void loadAccount(props.projectId, { agentId: props.agentId, type, credentialId });
+		}
+	},
+	{ immediate: true, deep: true },
+);
 const channelModalOpen = ref(false);
 
 watch(channelModalOpen, (open, wasOpen) => {
@@ -200,7 +251,7 @@ function channelRuntimeErrorMessage(channel: string): string {
 }
 
 // n8n Chat always shows, even when it is not in the agent config.
-const channelRows = computed(() =>
+const channelRows = computed<AgentTriggerChannelItem[]>(() =>
 	[
 		...(isN8nChatEnabled.value ? [N8N_CHAT_INTEGRATION_TYPE] : []),
 		...props.connectedTriggers.filter((channel) => channel !== N8N_CHAT_INTEGRATION_TYPE),
@@ -215,9 +266,11 @@ const channelRows = computed(() =>
 			...(hasRuntimeError(channel) ? [channelRuntimeErrorMessage(channel)] : []),
 			...(metaNotice?.isError ? [metaNotice.message] : []),
 		];
+		const label = integration?.label ?? channel;
 		return {
 			type: channel,
-			label: integration?.label ?? channel,
+			label,
+			mentionLabel: channelMentionLabel(channel),
 			icon: channelIcon(integration?.icon),
 			credentialName: credentialId ? credentialNamesById.value[credentialId] : undefined,
 			invalidReasons,
@@ -360,7 +413,30 @@ function handleChannelDisconnected(channelType: string) {
 		:class="[$style.row, props.disabled && $style.disabled]"
 		:inert="props.disabled || undefined"
 	>
+		<AgentTriggersList
+			v-if="isTriggerRedesignEnabled"
+			:channels="channelRows"
+			:project-id="props.projectId"
+			:agent-id="props.agentId"
+			:disabled="props.disabled"
+			:removing-channel="removingChannel"
+			:task-refs="props.taskRefs"
+			:is-published="props.isPublished"
+			:is-runnable="props.isRunnable"
+			:reload-key="props.reloadKey"
+			:agent-unsaved="props.agentUnsaved"
+			:ensure-agent-persisted="props.ensureAgentPersisted"
+			:validation-issues="props.validationIssues"
+			:preview-disabled-reason="props.previewDisabledReason"
+			@open-channel="openChannelEdit($event.type, $event.connected)"
+			@add-channel="openChannelModal"
+			@toggle-task="emit('toggle-task', $event)"
+			@tasks-changed="emit('tasks-changed')"
+			@preview-task="emit('preview-task', $event)"
+		/>
+
 		<AgentChipRow
+			v-else
 			:label="i18n.baseText('agents.builder.channel.title')"
 			:item-count="channelRows.length"
 			:add-label="i18n.baseText('agents.builder.channel.add')"
@@ -406,6 +482,7 @@ function handleChannelDisconnected(channelType: string) {
 		</AgentChipRow>
 
 		<AgentSchedulesRow
+			v-if="!isTriggerRedesignEnabled"
 			:preview-disabled-reason="props.previewDisabledReason"
 			:task-refs="props.taskRefs"
 			:disabled="props.disabled"
