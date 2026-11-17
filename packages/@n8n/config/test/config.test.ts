@@ -308,6 +308,7 @@ describe('GlobalConfig', () => {
 				includeWorkflowPublicationMetrics: false,
 				includeMcpPostSaveMetrics: false,
 				workflowPublicationMetricInterval: 60,
+				includeExecutionLedgerMetrics: false,
 			},
 			additionalNonUIRoutes: '',
 			agentWebhook: 'agent-webhook',
@@ -550,6 +551,9 @@ describe('GlobalConfig', () => {
 			ownerReconciliationBatchSize: 500,
 			ownerQuarantineGraceSeconds: 86400,
 			ownerSettleSeconds: 300,
+		},
+		leases: {
+			enabled: false,
 		},
 		evaluation: {
 			collectionsEnabled: false,

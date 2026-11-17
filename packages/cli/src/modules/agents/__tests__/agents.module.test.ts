@@ -6,8 +6,14 @@ import { InstanceSettings } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
 import { AiService } from '@/services/ai.service';
+import { FolderContentService } from '@/services/folder-content.service';
 import { ExecutionDataJsonStore } from '@/executions/execution-data/execution-data-json-store';
-import { AgentProjectLookupProxy, FavoriteResourceResolverRegistry } from '@n8n/backend-services';
+import {
+	AgentProjectLookupProxy,
+	ExecutionRetentionService,
+	FavoriteResourceResolverRegistry,
+	WorkflowProjectService,
+} from '@n8n/backend-services';
 import { SandboxSettingsService } from '@/services/sandbox-settings.service';
 import { ServiceAccountProjects } from '@/services/service-account-projects';
 import { AgentUsageProviderProxy } from '@/modules/workflow-index/agent-usage-provider-proxy.service';
@@ -15,6 +21,7 @@ import { KnowledgeSandboxProviderProxy } from '@/modules/knowledge/knowledge-san
 import { SkillUsageProxy } from '@/modules/skills';
 import { ServiceAccountUsageProxy } from '@/services/service-account-usage-proxy.service';
 
+import { AgentFolderService } from '../agent-folder.service';
 import { AgentChannelMediaRetentionTask } from '../agent-channel-media-retention.task';
 import { AgentKnowledgeSnapshotTask } from '../agent-knowledge-snapshot.task';
 import { AgentCheckpointPruningTask } from '../agent-checkpoint-pruning.task';
@@ -57,6 +64,12 @@ import { makeKnowledgeAvailabilityService } from '@/modules/knowledge/__tests__/
  * executes.
  */
 function setUpContainerForInit() {
+	const executionRetention = mock<ExecutionRetentionService>();
+	const workflowProjects = mock<WorkflowProjectService>();
+	Container.set(ExecutionRetentionService, executionRetention);
+	Container.set(WorkflowProjectService, workflowProjects);
+	Container.set(FolderContentService, mock<FolderContentService>());
+	Container.set(AgentFolderService, mock<AgentFolderService>());
 	Container.set(SandboxSettingsService, mock<SandboxSettingsService>());
 	Container.set(AgentsService, mock<AgentsService>());
 	Container.set(AgentDependencyIndexListener, mock<AgentDependencyIndexListener>());
@@ -114,6 +127,8 @@ function setUpContainerForInit() {
 	);
 
 	return {
+		executionRetention,
+		workflowProjects,
 		serviceAccountProjects,
 		agentServiceAccountService,
 		registry,
@@ -262,6 +277,21 @@ describe('AgentsModule', () => {
 			await module.init();
 
 			expect(serviceAccountUsageProxy.register).toHaveBeenCalledWith(serviceAccountUsage);
+		});
+
+		it('registers the approval retention and private owner policies', async () => {
+			const { executionRetention, workflowProjects } = setUpContainerForInit();
+
+			await module.init();
+
+			expect(executionRetention.register).toHaveBeenCalledWith(
+				'agent-approvals',
+				expect.any(Function),
+			);
+			expect(workflowProjects.registerPrivateOwner).toHaveBeenCalledWith(
+				'agent-approvals',
+				expect.any(Function),
+			);
 		});
 	});
 });
