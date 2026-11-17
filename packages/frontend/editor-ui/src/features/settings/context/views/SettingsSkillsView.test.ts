@@ -937,6 +937,40 @@ describe('SettingsSkillsView', () => {
 			expect(createMenuLabels()).toEqual(['Upload folder', 'Upload SKILL.md', 'Create manually']);
 		});
 
+		it.each([false, true])(
+			'shows the catalog below recommendations when Skill Sync is %s',
+			async (enabled) => {
+				assignVariant('variant');
+				mockedStore(usePostHog).isFeatureEnabled.mockImplementation(
+					(flag) => String(flag) === SKILL_SYNC_FLAG && enabled,
+				);
+				const view = renderView({
+					global: {
+						stubs: {
+							SkillSourceConnectDialog: {
+								props: ['open', 'preset'],
+								template: '<div v-if="open" data-test-id="catalog-import">{{ preset.url }}</div>',
+							},
+						},
+					},
+				});
+				const recommendations = await view.findByTestId('skills-recommended-empty-state');
+				if (!enabled) {
+					expect(view.queryByTestId('skill-catalog')).not.toBeInTheDocument();
+					return;
+				}
+				const catalog = await view.findByTestId('skill-catalog');
+				expect(
+					recommendations.compareDocumentPosition(catalog) & Node.DOCUMENT_POSITION_FOLLOWING,
+				).toBeTruthy();
+				await userEvent.click(within(catalog).getAllByTestId('skill-catalog-details')[0]);
+				await userEvent.click(await view.findByTestId('skill-catalog-add'));
+				expect(await view.findByTestId('catalog-import')).toHaveTextContent(
+					'https://github.com/n8n-io/skills/tree/main/skills/n8n-workflow-lifecycle-official',
+				);
+			},
+		);
+
 		it('tracks no exposure when the user has skills', async () => {
 			assignVariant('variant');
 			skillsStore.skills = [skill()];
@@ -1567,6 +1601,32 @@ describe('SettingsSkillsView', () => {
 		function renderWithDialogStub() {
 			return renderView({ global: { stubs: { SkillSourceConnectDialog: ConnectDialogStub } } });
 		}
+
+		it('opens a catalog selection in the GitHub import dialog', async () => {
+			enableSkillSync();
+			const view = renderWithDialogStub();
+			await userEvent.click(view.getByRole('tab', { name: 'Discover' }));
+			await view.findByTestId('skill-catalog');
+			await userEvent.click(view.getAllByTestId('skill-catalog-details')[0]);
+			await userEvent.click(await view.findByTestId('skill-catalog-add'));
+			expect(await view.findByTestId('connect-dialog-stub')).toBeInTheDocument();
+		});
+
+		it('opens a guide-based skill in the GitHub import flow', async () => {
+			enableSkillSync();
+			const view = renderWithDialogStub();
+			await userEvent.click(view.getByRole('tab', { name: 'Discover' }));
+			const card = await view.findByTestId('skill-catalog-n8n-memory-optimization');
+			await userEvent.click(within(card).getByRole('button'));
+			await userEvent.click(view.getByTestId('skill-catalog-add'));
+			expect(await view.findByTestId('connect-dialog-stub')).toBeInTheDocument();
+			expect(uiStore.openModalWithData).not.toHaveBeenCalled();
+		});
+
+		it('hides Discover when Skill Sync is disabled', () => {
+			const view = renderWithDialogStub();
+			expect(view.queryByRole('tab', { name: 'Discover' })).not.toBeInTheDocument();
+		});
 
 		it('offers "Connect to GitHub" first in the "Create skills" menu when the flag is on', async () => {
 			enableSkillSync();
