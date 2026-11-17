@@ -30,6 +30,7 @@ const WORKFLOW_SETTINGS_SCOPE = {
 	saveDataSuccessExecution: 'live',
 	saveExecutionProgress: 'live',
 	saveManualExecutions: 'live',
+	shareTriggerData: 'live',
 	timeSavedMode: 'live',
 	timeSavedPerExecution: 'live',
 	timezone: 'live',

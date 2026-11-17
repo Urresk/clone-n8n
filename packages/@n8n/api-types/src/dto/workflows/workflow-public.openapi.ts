@@ -40,6 +40,15 @@ export const workflowSettingsFieldDocs = {
 		example: 'VzqKEW0ShTXA5vPj',
 		description: 'The ID of the workflow that contains the error trigger node.',
 	},
+	shareTriggerData: {
+		example: false,
+		description:
+			'Controls whether an execution that this workflow starts shares the JSON of the first ' +
+			'item of its trigger. Nodes in the workflow and in each sub-workflow that it calls ' +
+			'read the item as `$execution.triggerData`. Error workflows receive it as ' +
+			'`execution.triggerData`. Defaults to false. The item is not shared when the ' +
+			'execution is redacted or when the item is larger than 64 KB.',
+	},
 	timezone: { example: 'America/New_York' },
 	executionOrder: { example: 'v1' },
 	binaryMode: {
@@ -250,6 +259,7 @@ export const settingsOpenApi: ZodOpenAPIMetadata = alsoNullable({
 		saveDataSuccessExecution: { type: 'string', enum: ['DEFAULT', 'all', 'none'] },
 		executionTimeout: { type: 'number', ...workflowSettingsFieldDocs.executionTimeout },
 		errorWorkflow: { type: 'string', ...workflowSettingsFieldDocs.errorWorkflow },
+		shareTriggerData: { type: 'boolean', ...workflowSettingsFieldDocs.shareTriggerData },
 		timezone: { type: 'string', ...workflowSettingsFieldDocs.timezone },
 		executionOrder: { type: 'string', ...workflowSettingsFieldDocs.executionOrder },
 		binaryMode: {

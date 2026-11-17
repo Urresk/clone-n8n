@@ -191,6 +191,7 @@ const selectedResolverId = computed({
 
 const helpTexts = computed(() => ({
 	errorWorkflow: i18n.baseText('workflowSettings.helpTexts.errorWorkflow'),
+	shareTriggerData: i18n.baseText('workflowSettings.helpTexts.shareTriggerData'),
 	timezone: i18n.baseText('workflowSettings.helpTexts.timezone'),
 	credentialResolver: i18n.baseText('workflowSettings.helpTexts.credentialResolver'),
 	saveDataErrorExecution: i18n.baseText('workflowSettings.helpTexts.saveDataErrorExecution'),
@@ -216,6 +217,7 @@ const defaultValues = ref({
 	workflowCallerPolicy: 'workflowsFromSameOwner',
 	availableInMCP: false,
 	redactCallerExecutions: true,
+	shareTriggerData: false,
 });
 
 const executionLogic = computed(() => {
@@ -853,6 +855,10 @@ const toggleTimeout = () => {
 	workflowSettings.value.executionTimeout = workflowSettings.value.executionTimeout === -1 ? 0 : -1;
 };
 
+const toggleShareTriggerData = () => {
+	workflowSettings.value.shareTriggerData = !workflowSettings.value.shareTriggerData;
+};
+
 const toggleAvailableInMCP = () => {
 	workflowSettings.value.availableInMCP = !workflowSettings.value.availableInMCP;
 };
@@ -984,6 +990,9 @@ onMounted(async () => {
 	}
 	if (workflowSettingsData.redactCallerExecutions === undefined) {
 		workflowSettingsData.redactCallerExecutions = defaultValues.value.redactCallerExecutions;
+	}
+	if (workflowSettingsData.shareTriggerData === undefined) {
+		workflowSettingsData.shareTriggerData = defaultValues.value.shareTriggerData;
 	}
 
 	originalBinaryMode.value = workflowSettingsData.binaryMode;
@@ -1179,6 +1188,31 @@ onBeforeUnmount(() => {
 								</div>
 							</N8nOption>
 						</N8nSelect>
+					</ElCol>
+				</ElRow>
+				<ElRow data-test-id="share-trigger-data">
+					<ElCol :span="10" :class="$style['setting-name']">
+						<label for="shareTriggerData">
+							{{ i18n.baseText('workflowSettings.shareTriggerData') }}
+							<N8nTooltip placement="top">
+								<template #content>
+									{{ helpTexts.shareTriggerData }}
+								</template>
+								<N8nIcon icon="circle-help" />
+							</N8nTooltip>
+						</label>
+					</ElCol>
+					<ElCol :span="14">
+						<N8nSwitch
+							id="shareTriggerData"
+							:class="$style['setting-switch']"
+							size="large"
+							:disabled="readOnlyEnv || !workflowPermissions.update"
+							:model-value="workflowSettings.shareTriggerData ?? false"
+							data-test-id="workflow-settings-share-trigger-data"
+							data-attr="workflow-settings-share-trigger-data"
+							@update:model-value="toggleShareTriggerData"
+						/>
 					</ElCol>
 				</ElRow>
 				<ElRow v-if="isCredentialResolverEnabled" data-test-id="credential-resolver">

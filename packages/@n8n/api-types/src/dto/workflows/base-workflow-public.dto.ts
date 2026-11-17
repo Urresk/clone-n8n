@@ -79,6 +79,7 @@ const workflowSettingsWritePublicSchema = z
 		saveDataSuccessExecution: z.enum(['all', 'none']).optional(),
 		executionTimeout: z.number().optional().openapi(workflowSettingsFieldDocs.executionTimeout),
 		errorWorkflow: z.string().optional().openapi(workflowSettingsFieldDocs.errorWorkflow),
+		shareTriggerData: z.boolean().optional().openapi(workflowSettingsFieldDocs.shareTriggerData),
 		timezone: z.string().optional().openapi(workflowSettingsFieldDocs.timezone),
 		executionOrder: z.string().optional().openapi(workflowSettingsFieldDocs.executionOrder),
 		binaryMode: z

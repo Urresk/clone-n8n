@@ -3,7 +3,13 @@ import { mockInstance } from '@n8n/backend-test-utils';
 import { GlobalConfig } from '@n8n/config';
 import { Container } from '@n8n/di';
 import { ErrorReporter } from 'n8n-core';
-import type { INode, IRun, IWorkflowBase, WorkflowExecuteMode } from 'n8n-workflow';
+import type {
+	IExecutionContext,
+	INode,
+	IRun,
+	IWorkflowBase,
+	WorkflowExecuteMode,
+} from 'n8n-workflow';
 import { createRunExecutionData, NodeOperationError } from 'n8n-workflow';
 import { mock } from 'vitest-mock-extended';
 
@@ -336,6 +342,83 @@ describe('executeErrorWorkflow', () => {
 				executedByUserId: 'user-who-ran-the-failed-workflow',
 				usesDynamicCredentials: true,
 			});
+		});
+	});
+
+	describe('shared trigger data', () => {
+		const triggerData = {
+			headers: { 'x-correlation-id': 'corr-1' },
+			query: {},
+			body: { hello: 'world' },
+		};
+
+		const runFailedWorkflow = async (runtimeData: Partial<IExecutionContext>) => {
+			const workflowData = mock<IWorkflowBase>({
+				id: 'workflow-123',
+				name: 'Failing workflow',
+				settings: { errorWorkflow: 'error-workflow-456' },
+				nodes: [],
+			});
+			const data = createRunExecutionData({
+				resultData: {
+					error: new NodeOperationError(
+						mockNode,
+						'Test error',
+					) as IRun['data']['resultData']['error'],
+					lastNodeExecuted: 'TestNode',
+					runData: {},
+				},
+				executionData: { nodeExecutionStack: [] },
+			});
+			data.executionData!.runtimeData = {
+				version: 1,
+				establishedAt: 2000000000,
+				source: 'webhook',
+				triggerNode: { name: 'Webhook', type: 'n8n-nodes-base.webhook' },
+				...runtimeData,
+			};
+
+			ownershipService.getWorkflowProjectCached.mockResolvedValue({ id: 'project-1' } as never);
+
+			executeErrorWorkflow(
+				workflowData,
+				{ data, mode: 'webhook', startedAt: new Date(), storedAt: 'db', status: 'error' },
+				'webhook',
+				'execution-1',
+			);
+			await new Promise(process.nextTick);
+
+			const [, workflowErrorData] =
+				workflowExecutionService.executeErrorWorkflow.mock.calls.at(0) ?? [];
+			return workflowErrorData!.execution!;
+		};
+
+		it('passes the trigger data of the context as a separate property', async () => {
+			const execution = await runFailedWorkflow({ triggerData });
+
+			expect(execution.triggerData).toEqual(triggerData);
+		});
+
+		it('keeps the trigger data out of the execution context of the payload', async () => {
+			const execution = await runFailedWorkflow({ triggerData });
+
+			expect(execution.executionContext).not.toHaveProperty('triggerData');
+		});
+
+		it('passes the inherited trigger data when a sub-execution fails', async () => {
+			const execution = await runFailedWorkflow({
+				source: 'integrated',
+				parentExecutionId: 'root-execution',
+				triggerData,
+			});
+
+			expect(execution.triggerData).toEqual(triggerData);
+		});
+
+		it('passes no trigger data when the context has none', async () => {
+			const execution = await runFailedWorkflow({});
+
+			expect(execution.triggerData).toBeUndefined();
 		});
 	});
 });

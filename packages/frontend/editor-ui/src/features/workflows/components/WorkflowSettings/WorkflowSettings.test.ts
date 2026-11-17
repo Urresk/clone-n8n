@@ -503,6 +503,35 @@ describe('WorkflowSettingsVue', () => {
 				}),
 			);
 		});
+
+		it('should show the trigger data toggle as off when the setting is not set', async () => {
+			workflowDocumentStore.setSettings({ executionOrder: 'v1' });
+
+			const { getByTestId } = createComponent({ pinia });
+			await flushPromises();
+
+			expect(getByTestId('workflow-settings-share-trigger-data')).toHaveAttribute(
+				'aria-checked',
+				'false',
+			);
+		});
+
+		it('should save shareTriggerData as true when the user turns it on', async () => {
+			workflowDocumentStore.setSettings({ executionOrder: 'v1' });
+
+			const { getByTestId, getByRole } = createComponent({ pinia });
+			await flushPromises();
+
+			await userEvent.click(getByTestId('workflow-settings-share-trigger-data'));
+			await userEvent.click(getByRole('button', { name: 'Save' }));
+
+			expect(workflowsStore.updateWorkflow).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					settings: expect.objectContaining({ shareTriggerData: true }),
+				}),
+			);
+		});
 	});
 
 	it('should not remove valid workflow ID characters including hyphens and underscores', async () => {

@@ -77,6 +77,8 @@ export function executeErrorWorkflow(
 					mode,
 					retryOf,
 					executionContext: toErrorWorkflowContext(fullRunData.data.executionData?.runtimeData),
+					// Not on the context allow-list, so it crosses only as this property.
+					triggerData: fullRunData.data.executionData?.runtimeData?.triggerData,
 				},
 				workflow: {
 					id: workflowId,

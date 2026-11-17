@@ -3453,6 +3453,8 @@ export type IWorkflowDataProxyAdditionalKeys = IDataObject & {
 		resumeUrl: string;
 		resumeFormUrl: string;
 		customData?: IWorkflowExecutionCustomData;
+		/** First trigger item of the root execution, when the root shares it. */
+		triggerData?: IDataObject;
 	};
 	$evaluation?: { runId: string };
 	$vars?: IDataObject;
@@ -4239,6 +4241,12 @@ export type WorkflowEngineType = (typeof WORKFLOW_ENGINE_TYPES)[number];
 export interface IWorkflowSettings {
 	timezone?: 'DEFAULT' | string;
 	errorWorkflow?: 'DEFAULT' | string;
+	/**
+	 * Whether a root execution of this workflow stores the JSON of the first item
+	 * of its trigger in its execution context. Sub-executions inherit it, and error
+	 * workflows receive it. When not set, it is off.
+	 */
+	shareTriggerData?: boolean;
 	callerIds?: string;
 	callerPolicy?: WorkflowSettings.CallerPolicy;
 	saveDataErrorExecution?: WorkflowSettings.SaveDataExecution;
