@@ -214,7 +214,7 @@ describe('SecuritySettings', () => {
 		).toBeInTheDocument();
 		expect(
 			getByText(
-				'Allow users to submit workflow versions for approval before publishing. Reviews are optional, but an open review blocks publishing.',
+				'Allow users to submit workflow versions for approval before publishing. An open review blocks publishing.',
 			),
 		).toBeInTheDocument();
 		expect(
@@ -983,14 +983,11 @@ describe('SecuritySettings', () => {
 			expect(queryByTestId('security-workflow-reviews-toggle')).not.toBeInTheDocument();
 		});
 
-		it('should not render workflow reviews section when license is off', async () => {
-			settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.WorkflowReviews] = false;
-			checkEnvFeatureFlag.mockReturnValue(true);
-			const { queryByTestId } = renderView();
+		it('should not render workflow reviews section when the settings carry no workflow reviews policy', async () => {
+			getSecuritySettings.mockResolvedValue(defaultSettings);
+			const { findByTestId, queryByTestId } = renderView();
 
-			await waitFor(() => {
-				expect(getSecuritySettings).toHaveBeenCalled();
-			});
+			await findByTestId('security-personal-space-sharing-toggle');
 
 			expect(queryByTestId('security-workflow-reviews-toggle')).not.toBeInTheDocument();
 		});
@@ -1051,6 +1048,43 @@ describe('SecuritySettings', () => {
 			expect(toggle).not.toHaveAttribute('data-disabled');
 			expect(showError).not.toHaveBeenCalled();
 			expect(settingsStore.getSettings).not.toHaveBeenCalled();
+		});
+
+		it('hides Require approval while workflow reviews are off', async () => {
+			const { findByTestId, queryByTestId } = renderView();
+
+			await findByTestId('security-workflow-reviews-toggle');
+
+			expect(
+				queryByTestId('security-workflow-reviews-require-approval-select'),
+			).not.toBeInTheDocument();
+		});
+
+		it('shows Require approval and saves Always required', async () => {
+			getSecuritySettings.mockResolvedValue({
+				...defaultSettings,
+				workflowReviews: { enabled: true },
+			});
+			updateSecuritySettings.mockResolvedValue({
+				workflowReviews: { enabled: true, alwaysRequired: true },
+			});
+
+			const { findByTestId, findByRole } = renderView();
+			const select = await findByTestId('security-workflow-reviews-require-approval-select');
+			expect(select).toHaveTextContent('When configured');
+
+			await userEvent.click(select);
+			await userEvent.click(await findByRole('option', { name: 'Always required' }));
+
+			await waitFor(() => {
+				expect(updateSecuritySettings).toHaveBeenCalledWith(expect.anything(), {
+					workflowReviews: { alwaysRequired: true },
+				});
+				expect(settingsStore.settings.workflowReviews).toEqual({
+					enabled: true,
+					alwaysRequired: true,
+				});
+			});
 		});
 
 		it('should disable workflow reviews toggle when managed by env', async () => {
