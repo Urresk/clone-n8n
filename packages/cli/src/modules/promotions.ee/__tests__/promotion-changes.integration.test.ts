@@ -47,6 +47,7 @@ import {
 } from '@/modules/n8n-packages/__tests__/utils/test-builders';
 import { N8nPackagesService } from '@/modules/n8n-packages/n8n-packages.service';
 import { TagService } from '@/services/tag.service';
+import { createAgent } from '@test-integration/db/agents';
 import { saveCredential } from '@test-integration/db/credentials';
 import { createTag } from '@test-integration/db/tags';
 import { createOwner, createOwnerWithApiKey } from '@test-integration/db/users';
@@ -231,7 +232,7 @@ it("previews against the project's environment, not the instance one", async () 
 it('lists new, changed, moved, archived, restored and deleted workflows through the endpoint', async () => {
 	const owner = await createOwner();
 	const project = await createTeamProject('Preview', owner);
-	await Container.get(AgentRepository).save({
+	await createAgent({
 		id: 'local-agent',
 		name: 'Local Agent',
 		projectId: project.id,

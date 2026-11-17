@@ -74,6 +74,13 @@ export const INVITE_ROLE_MANAGED_MESSAGE =
 	'Instance roles are managed by single sign-on. Invite users with the member role.';
 
 /** The system as the actor of a user deletion that no user asked for. */
+/**
+ */
+export type ServiceAccountOwnerRemoval = {
+	cleanUp: () => Promise<void>;
+	deleteInTransaction: (ctx: OperationContext) => Promise<void>;
+};
+
 export type SystemDeletionActor = Extract<PolicyActor, { kind: 'system' }> & { reason: 'scim' };
 
 @Service()
@@ -657,15 +664,22 @@ export class UserService {
 	 * Deletes the service account of an agent that is being deleted, so it skips
 	 * the check that an agent acts as the account. Only
 	 * `ServiceAccountService.remove` calls this.
+	 *
+	 * `owner` is the agent that acts as the account. Its cleanup runs after the
+	 * work of the account moved or was deleted. Its row goes in the transaction
+	 * that deletes the account, because the account cannot go while the agent
+	 * exists, and both rows must go together.
 	 */
 	async deleteServiceAccount(
 		actor: User | SystemDeletionActor,
 		idToDelete: string,
-		transferId?: string,
-		ctx: OperationContext = {},
+		transferId: string | undefined,
+		ctx: OperationContext,
+		owner: ServiceAccountOwnerRemoval,
 	) {
 		return await this.deleteAccount(actor, idToDelete, transferId, false, ctx, {
 			allowAgentAccount: true,
+			owner,
 		});
 	}
 
@@ -675,7 +689,10 @@ export class UserService {
 		transferId: string | undefined,
 		publicApi: PublicApiCaller,
 		ctx: OperationContext,
-		{ allowAgentAccount }: { allowAgentAccount: boolean },
+		{
+			allowAgentAccount,
+			owner,
+		}: { allowAgentAccount: boolean; owner?: ServiceAccountOwnerRemoval },
 	) {
 		// A user also has a `kind` (person or service), so test the value.
 		const systemActor = actor.kind === 'system' ? actor : null;
@@ -789,7 +806,10 @@ export class UserService {
 			ctx,
 		});
 
+		await owner?.cleanUp();
+
 		await this.txRunner.run({}, async (ctx) => {
+			await owner?.deleteInTransaction(ctx);
 			await ownershipTransferService.finalizeUserDeletion(
 				userToDelete.id,
 				personalProjectToDelete.id,
