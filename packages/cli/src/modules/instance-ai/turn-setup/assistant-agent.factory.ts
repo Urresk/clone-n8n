@@ -17,10 +17,10 @@ import {
 	type OrchestrationContext,
 } from '@n8n/instance-ai';
 import { ErrorReporter } from 'n8n-core';
+import { PushProxy } from '@n8n/backend-services';
 
 import { formatPreviewSessionContext } from '@/modules/agents/format-agent-session-context';
 import { userHasScopes } from '@/permissions.ee/check-access';
-import { Push } from '@/push';
 import { Telemetry } from '@/telemetry';
 
 import { canAccessAgentTestHandoff } from '../agent-test-handoff';
@@ -79,7 +79,7 @@ export class AssistantAgentFactory {
 		private readonly instanceAiErrorReporter: InstanceAiErrorReporterService,
 		private readonly errorReporter: ErrorReporter,
 		private readonly telemetry: Telemetry,
-		private readonly push: Push,
+		private readonly push: PushProxy,
 		private readonly modelService: InstanceAiModelService,
 	) {
 		this.instanceAiConfig = globalConfig.instanceAi;
