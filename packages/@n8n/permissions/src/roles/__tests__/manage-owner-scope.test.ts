@@ -37,10 +37,10 @@ describe.each(['workflow:manageOwner', 'agent:manageOwner'] as const)('%s scope'
 	it('can be given to a custom project role', () => {
 		expect(PROJECT_CUSTOM_ROLE_SCOPES.has(scope)).toBe(true);
 	});
+});
 
-	it('is not available to API keys', () => {
-		expect(ALL_API_KEY_SCOPES.has(scope)).toBe(false);
-	});
+it('offers workflow:manageOwner to API keys', () => {
+	expect(ALL_API_KEY_SCOPES.has('workflow:manageOwner')).toBe(true);
 });
 
 it('applies workflow:manageOwner only through the home project of a workflow', () => {
