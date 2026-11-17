@@ -1836,7 +1836,7 @@ export class AgentExecutionOrchestratorService {
 			userId: user.id,
 			requester: reviewRequesterForUser(
 				user,
-				setup.surface === 'preview' ? 'preview' : N8N_CHAT_INTEGRATION_TYPE,
+				setup.surface === 'preview' ? 'preview' : (source ?? N8N_CHAT_INTEGRATION_TYPE),
 			),
 			message,
 			attachments,
