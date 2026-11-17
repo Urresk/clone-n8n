@@ -8,6 +8,7 @@ import { mock } from 'vitest-mock-extended';
 
 import type { AgentCredentialLookupService } from '../../../agent-credential-lookup.service';
 import {
+	isNumberNotFoundError,
 	resolveWhatsAppMetaState,
 	type WhatsAppMetaSignals,
 } from '../../whatsapp/whatsapp-meta-status';
@@ -30,8 +31,8 @@ describe('resolveWhatsAppMetaState', () => {
 		],
 		['a number that Meta disconnected', { numberStatus: 'DISCONNECTED' }, 'numberUnavailable'],
 		['a number that Meta banned', { numberStatus: 'BANNED' }, 'numberUnavailable'],
-		['a number that was deleted', { numberStatus: 'DELETED' }, 'numberUnavailable'],
-		['a number that moved to another account', { numberStatus: 'MIGRATED' }, 'numberUnavailable'],
+		['a number that was deleted', { numberStatus: 'DELETED' }, 'numberDeleted'],
+		['a number that moved to another account', { numberStatus: 'MIGRATED' }, 'numberMigrated'],
 		[
 			'a number that cannot send, over a name in review',
 			{ numberStatus: 'BANNED', nameStatus: 'PENDING_REVIEW' },
@@ -117,6 +118,19 @@ describe('resolveWhatsAppMetaState', () => {
 	});
 });
 
+describe('isNumberNotFoundError', () => {
+	it.each<[string, unknown, boolean]>([
+		['code 100 with subcode 33', { error: { code: 100, error_subcode: 33 } }, true],
+		['code 100 without a subcode', { error: { code: 100 } }, false],
+		['code 100 with another subcode', { error: { code: 100, error_subcode: 2018001 } }, false],
+		['another code with subcode 33', { error: { code: 190, error_subcode: 33 } }, false],
+		['a body with no error', { status: 'CONNECTED' }, false],
+		['no body', undefined, false],
+	])('gives the right answer for %s', (_label, body, expected) => {
+		expect(isNumberNotFoundError(body)).toBe(expected);
+	});
+});
+
 describe('WhatsAppCredentialCheckService.getMetaStatus', () => {
 	const user = mock<User>({ id: 'user-1' });
 	const credential = {
@@ -196,8 +210,40 @@ describe('WhatsAppCredentialCheckService.getMetaStatus', () => {
 		expect((await service.getMetaStatus(user, 'project-1', 'cred-1')).state).toBe('dailyLimit');
 	});
 
+	it('gives numberNotFound when Meta does not find the number', async () => {
+		// The reply Meta gives for a phone number ID that does not exist.
+		request.mockImplementation(async ({ url }: { url: string }) =>
+			url.endsWith('/222')
+				? { statusCode: 400, body: {} }
+				: {
+						statusCode: 400,
+						body: {
+							error: {
+								message:
+									"Unsupported get request. Object with ID '111' does not exist, cannot be loaded due to missing permissions, or does not support this operation.",
+								type: 'GraphMethodException',
+								code: 100,
+								error_subcode: 33,
+								fbtrace_id: 'trace',
+							},
+						},
+					},
+		);
+
+		expect(await service.getMetaStatus(user, 'project-1', 'cred-1')).toEqual({
+			state: 'numberNotFound',
+		});
+	});
+
 	it.each([
 		['Meta refuses the number request', async () => ({ statusCode: 400, body: {} })],
+		[
+			'Meta refuses the number request for another reason',
+			async () => ({
+				statusCode: 400,
+				body: { error: { code: 100, message: 'Tried accessing nonexisting field' } },
+			}),
+		],
 		[
 			'Meta cannot be reached',
 			async () => {
