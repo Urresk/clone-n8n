@@ -74,6 +74,7 @@ import { getWorkflowProjectDetailsSafe } from '@/workflows/utils';
 import { EngineV2ExecutionReader } from './engine-v2-execution-reader.service';
 import { MissingExecutionDataError } from './execution-data/missing-execution-data.error';
 import { isExecutionIdV2, type ExecutionIdV2 } from './execution-id';
+import { ExecutionCancelService } from './execution-cancel.service';
 import { ExecutionPersistence } from './execution-persistence';
 
 import type { ExecutionRequest, RetriedExecution, StopResult } from './execution.types';
@@ -143,6 +144,7 @@ export class ExecutionService {
 		private readonly engineV2ExecutionReader: EngineV2ExecutionReader,
 		private readonly engineDataPlane: EngineDataPlaneProxyService,
 		private readonly workflowVersionedSettings: WorkflowVersionedSettingsService,
+		private readonly executionCancelService: ExecutionCancelService,
 	) {}
 
 	/**
@@ -696,7 +698,7 @@ export class ExecutionService {
 	private async stopInRegularMode(execution: IExecutionResponse) {
 		if (this.concurrencyControl.has(execution.id)) {
 			this.concurrencyControl.remove({ mode: execution.mode, executionId: execution.id });
-			return await this.executionRepository.stopBeforeRun(execution);
+			return await this.stopBeforeRun(execution);
 		}
 
 		if (this.activeExecutions.has(execution.id)) {
@@ -739,6 +741,26 @@ export class ExecutionService {
 		}
 	}
 
+	private async stopBeforeRun(execution: IExecutionResponse): Promise<IExecutionResponse> {
+		const {
+			canceled: [canceled],
+		} = await this.executionCancelService.markAsCanceled([execution.id]);
+		if (canceled) {
+			return { ...execution, status: 'canceled', stoppedAt: canceled.stoppedAt, waitTill: null };
+		}
+
+		// Nothing changed, so the run finished first and its own outcome is the answer.
+		return await this.findCurrentOrThrow(execution);
+	}
+
+	private async findCurrentOrThrow(execution: IExecutionResponse) {
+		const current = await this.executionPersistence.findWithUnflattenedData(execution.id, [
+			execution.workflowId,
+		]);
+		if (!current) throw new MissingExecutionStopError(execution.id);
+		return current;
+	}
+
 	private async stopDuringRun(execution: IExecutionResponse): Promise<IExecutionResponse> {
 		const expectedStatus = execution.status;
 		const error = new ManualExecutionCancelledError(execution.id);
@@ -753,16 +775,25 @@ export class ExecutionService {
 		execution.waitTill = null;
 		execution.status = 'canceled';
 
-		const stopped = await this.executionPersistence.updateExistingExecution(
+		const { updated, ended } = await this.executionPersistence.saveExecutionOutcome(
 			execution.id,
 			execution,
 			{ requireStatus: expectedStatus },
 		);
-		if (!stopped) {
-			const current = await this.executionPersistence.findWithUnflattenedData(execution.id, [
-				execution.workflowId,
+		if (ended) {
+			void this.executionCancelService.recordEnded([
+				{
+					id: execution.id,
+					workflowId: execution.workflowId,
+					workflowName: execution.workflowData?.name,
+					mode: execution.mode,
+					startedAt: execution.startedAt ?? null,
+					stoppedAt: execution.stoppedAt,
+				},
 			]);
-			if (!current) throw new MissingExecutionStopError(execution.id);
+		}
+		if (!updated) {
+			const current = await this.findCurrentOrThrow(execution);
 			if (current.status === 'canceled') return current;
 			this.assertStoppable(current);
 			return this.globalConfig.executions.mode === 'regular'
