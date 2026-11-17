@@ -768,6 +768,8 @@ describe('GlobalConfig', () => {
 			logStreamingDestinations: '',
 			mcpManagedByEnv: false,
 			mcpAccessEnabled: false,
+			skillSyncManagedByEnv: false,
+			skillSyncEnabled: false,
 			communityPackagesManagedByEnv: false,
 			communityPackages: '',
 		},
