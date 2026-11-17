@@ -353,6 +353,8 @@ export type FrontendModuleSettings = {
 		serverUrl?: string;
 		/** Whether newly created workflows are auto-exposed to MCP. */
 		autoExposeNewWorkflows: boolean;
+		preferencesEnabled: boolean;
+		skillsEnabled: boolean;
 	};
 
 	/**

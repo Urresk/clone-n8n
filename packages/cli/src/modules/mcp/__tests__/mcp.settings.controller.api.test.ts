@@ -194,6 +194,8 @@ describe('PATCH /mcp/settings', () => {
 		// Clear the in-memory cache so subsequent reads hit the DB.
 		await Container.get(McpSettingsService).setEnabled(false);
 		await Container.get(SettingsRepository).delete({ key: settingsKey });
+		await Container.get(SettingsRepository).delete({ key: 'mcp.preferences.enabled' });
+		await Container.get(SettingsRepository).delete({ key: 'mcp.skills.enabled' });
 	});
 
 	test('owner can enable MCP access', async () => {
@@ -203,7 +205,12 @@ describe('PATCH /mcp/settings', () => {
 			.send({ mcpAccessEnabled: true });
 
 		expect(response.statusCode).toBe(200);
-		expect(response.body.data).toEqual({ mcpAccessEnabled: true, autoExposeNewWorkflows: false });
+		expect(response.body.data).toEqual({
+			mcpAccessEnabled: true,
+			autoExposeNewWorkflows: false,
+			preferencesEnabled: true,
+			skillsEnabled: true,
+		});
 
 		const stored = await Container.get(SettingsRepository).findByKey(settingsKey);
 		expect(stored?.value).toBe('true');
@@ -218,10 +225,29 @@ describe('PATCH /mcp/settings', () => {
 			.send({ mcpAccessEnabled: false });
 
 		expect(response.statusCode).toBe(200);
-		expect(response.body.data).toEqual({ mcpAccessEnabled: false, autoExposeNewWorkflows: false });
+		expect(response.body.data).toEqual({
+			mcpAccessEnabled: false,
+			autoExposeNewWorkflows: false,
+			preferencesEnabled: true,
+			skillsEnabled: true,
+		});
 
 		const stored = await Container.get(SettingsRepository).findByKey(settingsKey);
 		expect(stored?.value).toBe('false');
+	});
+
+	test('owner can turn the preferences and skills switches off', async () => {
+		const response = await testServer
+			.authAgentFor(owner)
+			.patch('/mcp/settings')
+			.send({ preferencesEnabled: false, skillsEnabled: false });
+
+		expect(response.statusCode).toBe(200);
+		expect(response.body.data).toMatchObject({ preferencesEnabled: false, skillsEnabled: false });
+
+		const settingsRepository = Container.get(SettingsRepository);
+		expect((await settingsRepository.findByKey('mcp.preferences.enabled'))?.value).toBe('false');
+		expect((await settingsRepository.findByKey('mcp.skills.enabled'))?.value).toBe('false');
 	});
 
 	test('member without mcp:manage scope is forbidden', async () => {

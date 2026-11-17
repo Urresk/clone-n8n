@@ -8,6 +8,7 @@ import type { Mock } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
 import type { CollaborationService } from '@/collaboration/collaboration.service';
+import type { License } from '@/license';
 import { BadRequestError } from '@n8n/errors';
 import type { CacheService } from '@n8n/backend-services';
 import type { WorkflowFinderService } from '@/workflows/workflow-finder.service';
@@ -19,12 +20,14 @@ describe('McpSettingsService', () => {
 	let service: McpSettingsService;
 	let findByKey: Mock<(...args: [string]) => Promise<Settings | null>>;
 	let upsert: Mock;
+	let upsertByKey: Mock;
 	let settingsRepository: SettingsRepository;
 	const cacheService = mock<CacheService>();
 	const workflowRepository = mock<WorkflowRepository>();
 	const workflowFinderService = mock<WorkflowFinderService>();
 	const logger = mock<Logger>();
 	const collaborationService = mock<CollaborationService>();
+	const license = mock<License>();
 	const globalConfig = {
 		executions: { timeout: -1 },
 	} as unknown as GlobalConfig;
@@ -33,7 +36,8 @@ describe('McpSettingsService', () => {
 		vi.clearAllMocks();
 		findByKey = vi.fn<(...args: [string]) => Promise<Settings | null>>();
 		upsert = vi.fn();
-		settingsRepository = { findByKey, upsert } as unknown as SettingsRepository;
+		upsertByKey = vi.fn();
+		settingsRepository = { findByKey, upsert, upsertByKey } as unknown as SettingsRepository;
 		collaborationService.filterOpenWorkflowIds.mockImplementation(
 			async (workflowIds) => workflowIds,
 		);
@@ -49,7 +53,50 @@ describe('McpSettingsService', () => {
 			globalConfig,
 			logger,
 			collaborationService,
+			license,
 		);
+	});
+
+	describe.each([
+		{
+			name: 'preferences',
+			key: 'mcp.preferences.enabled',
+			get: async () => await service.getPreferencesEnabled(),
+			set: async (enabled: boolean) => await service.setPreferencesEnabled(enabled),
+		},
+		{
+			name: 'skills',
+			key: 'mcp.skills.enabled',
+			get: async () => await service.getSkillsEnabled(),
+			set: async (enabled: boolean) => await service.setSkillsEnabled(enabled),
+		},
+	])('$name switch', ({ key, get, set }) => {
+		test.each([
+			{ isEnterprisePlan: true, expected: false },
+			{ isEnterprisePlan: false, expected: true },
+		])(
+			'returns $expected when nothing is saved and isEnterprisePlan is $isEnterprisePlan',
+			async ({ isEnterprisePlan, expected }) => {
+				findByKey.mockResolvedValue(null);
+				license.isEnterprisePlan.mockReturnValue(isEnterprisePlan);
+
+				await expect(get()).resolves.toBe(expected);
+				expect(findByKey).toHaveBeenCalledWith(key);
+			},
+		);
+
+		test.each(['true', 'false'])('returns the saved value "%s" on any plan', async (value) => {
+			findByKey.mockResolvedValue(mock<Settings>({ key, value }));
+			license.isEnterprisePlan.mockReturnValue(true);
+
+			await expect(get()).resolves.toBe(value === 'true');
+		});
+
+		test('saves the value', async () => {
+			await set(false);
+
+			expect(upsertByKey).toHaveBeenCalledWith(key, 'false', true, {});
+		});
 	});
 
 	describe('getEnabled', () => {

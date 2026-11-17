@@ -52,7 +52,6 @@ import { ExecutionListService } from '@/executions/execution-list.service';
 
 import { ExecutionService } from '@/executions/execution.service';
 import { DataTableProxyService } from '@n8n/backend-module-data-table';
-import { SkillsGate } from '@/modules/skills';
 import { NodeCatalogService } from '@/node-catalog';
 import { AiGatewayService } from '@/services/ai-gateway.service';
 import { FolderService } from '@/services/folder.service';
@@ -84,8 +83,10 @@ import {
 import { getAllowedToolNames } from './mcp-scopes';
 import {
 	areAgentToolsAvailable,
+	areMcpSkillsAvailable,
 	canReadMigrationReport,
 	isCommunityNodeInstallAvailable,
+	isMcpPreferencesSwitchOn,
 } from './mcp-tool-availability';
 import type {
 	McpAppsTelemetryVariant,
@@ -549,8 +550,10 @@ export class McpService {
 		const contextToolsAllowed = allowedToolNames?.has(GET_INSTANCE_CONTEXT_TOOL_NAME) ?? true;
 		// Gates the sentence only; registration below goes through `registerIfAllowed` like every
 		// other tool. No RBAC check: a user's own preferences need no scope.
+		const preferencesEnabled = isMcpPreferencesSwitchOn(this.moduleRegistry);
+		const skillsEnabled = areMcpSkillsAvailable(this.moduleRegistry);
 		const userPreferencesInstructionsEnabled =
-			allowedToolNames?.has(MCP_GET_USER_PREFERENCES_TOOL_NAME) ?? true;
+			preferencesEnabled && (allowedToolNames?.has(MCP_GET_USER_PREFERENCES_TOOL_NAME) ?? true);
 		// The same rationale again: only a caller whose role and grant reach the report is
 		// pointed at it.
 		const migrationReportReadable = canReadMigrationReport(this.moduleRegistry, user);
@@ -883,38 +886,40 @@ export class McpService {
 
 		// Not builder-gated: preferences apply to Agents, data tables and folders as well as
 		// workflows, so a caller without the builder still has changes to apply them to.
-		registerIfAllowed(
-			createGetUserPreferencesTool(
-				user,
-				this.aiPreferenceService,
-				this.telemetry,
-				this.preferencesNoteService,
-				featureFlags.preferencesNoteVariant,
-			),
-		);
-		// The write path. Gated by `aiPreference:write` at registration; the service applies the
-		// same rules as the settings area, and `source` is fixed to `mcp` inside the tools.
-		registerIfAllowed(
-			createSaveUserPreferenceTool(
-				user,
-				this.aiPreferenceService,
-				this.telemetry,
-				this.urlService,
-				this.logger,
-			),
-		);
-		registerIfAllowed(
-			createUpdateUserPreferenceTool(
-				user,
-				this.aiPreferenceService,
-				this.telemetry,
-				this.urlService,
-				this.logger,
-			),
-		);
-		registerIfAllowed(
-			createUndoUserPreferenceTool(user, this.aiPreferenceService, this.telemetry, this.logger),
-		);
+		if (preferencesEnabled) {
+			registerIfAllowed(
+				createGetUserPreferencesTool(
+					user,
+					this.aiPreferenceService,
+					this.telemetry,
+					this.preferencesNoteService,
+					featureFlags.preferencesNoteVariant,
+				),
+			);
+			// The write path. Gated by `aiPreference:write` at registration; the service applies the
+			// same rules as the settings area, and `source` is fixed to `mcp` inside the tools.
+			registerIfAllowed(
+				createSaveUserPreferenceTool(
+					user,
+					this.aiPreferenceService,
+					this.telemetry,
+					this.urlService,
+					this.logger,
+				),
+			);
+			registerIfAllowed(
+				createUpdateUserPreferenceTool(
+					user,
+					this.aiPreferenceService,
+					this.telemetry,
+					this.urlService,
+					this.logger,
+				),
+			);
+			registerIfAllowed(
+				createUndoUserPreferenceTool(user, this.aiPreferenceService, this.telemetry, this.logger),
+			);
+		}
 
 		// Not builder-gated: reading the report and running its built-in fixes need no builder.
 		// The tools belong to the `breaking-changes` module, so they load only when it serves a report.
@@ -956,10 +961,11 @@ export class McpService {
 				user,
 				allowedToolNames,
 				ctx,
+				skillsEnabled,
 			);
 		}
 
-		if (Container.get(SkillsGate).isEnabled) {
+		if (skillsEnabled) {
 			const { McpSkillToolsService } = await import('./tools/skills/skill-tools.service.js');
 			await Container.get(McpSkillToolsService).registerTools(
 				registerIfAllowed,
