@@ -1,3 +1,4 @@
+import { getAgentRuntimeDefinitionHash } from './utils/agent-config-hash';
 import {
 	createWriteTodosTool,
 	raceWithAbort,
@@ -14,6 +15,9 @@ import {
 	ModelConfig,
 	type Workspace,
 } from '@n8n/agents';
+import { wrapToolForApproval } from '@n8n/agents/tool';
+import { isRecord } from '@n8n/utils/is-record';
+import { actionNeedsApproval } from './integrations/integration-tool-definitions';
 import { getProviderPrefix } from '@n8n/ai-utilities/agent-config';
 import {
 	AI_GATEWAY_MANAGED_TAG,
@@ -25,6 +29,7 @@ import {
 	buildProxyHeaders,
 	hasChannelRuntime,
 	isCredentialAgentIntegration,
+	type AgentApprovalRoute,
 	type AgentIntegrationConfig,
 	type AgentToolGuardrailConfig,
 	type BudgetGuardrailConfig,
@@ -114,6 +119,8 @@ import {
 } from './tools/read-binary-data.tool';
 import type { WorkflowToolExecutionMode } from './tools/workflow-tool-factory';
 import { findWorkflowToolWorkflow } from './tools/workflow-tool-workflow-resolver';
+import { AgentDecisionWorkflowService } from './approval/agent-decision-workflow.service';
+import { withApprovalDescription } from './approval/approval-description';
 import type { AgentRunSource } from './utils/agent-published-snapshot';
 import { getAgentRuntimeAssets, type AgentRuntimeAssets } from './utils/agent-runtime-assets';
 import { resolveUniqueSubAgents } from './utils/sub-agent-resolver';
@@ -152,6 +159,9 @@ export interface SubAgentDelegationConfig {
 }
 
 export interface ReconstructAgentRuntimeParams extends AgentRuntimeAssets {
+	supportsHitl?: boolean;
+	allowBackgroundTasks?: boolean;
+	allowPlanTools?: boolean;
 	config: AgentJsonConfig;
 	memoryOwnerAgentId: string;
 	projectId: string;
@@ -230,6 +240,7 @@ interface RuntimeDependencies
 		| 'unavailableTools'
 	> {
 	agent: RuntimeAgent;
+	toolCodeByName: AgentRuntimeAssets['toolCodeByName'];
 	agentId: string;
 	workflowToolExecutionMode: WorkflowToolExecutionMode;
 	parentAgentIdForDelegation: string;
@@ -696,7 +707,7 @@ export class AgentRuntimeReconstructionService {
 		return await this.reconstructRuntime({
 			...params,
 			config,
-			credentialIntegrations: [],
+			credentialIntegrations: params.credentialIntegrations ?? [],
 			subAgentDelegation,
 			unavailableTools,
 		});
@@ -814,6 +825,7 @@ export class AgentRuntimeReconstructionService {
 		const buildMcpClient = this.makeMcpClientFactory(options, aiMcpFetch, mcpServerAttributions);
 		const modelFetch = instrumentation?.modelFetch ?? aiProxyFetch;
 		const reconstructed = await buildFromJson(config, toolDescriptors, {
+			wrapApproval: (tool, ref) => this.wrapConfiguredApproval(tool, ref.approvalRoute, options),
 			toolExecutor,
 			credentialProvider,
 			resolveTool: async (ref) => {
@@ -887,6 +899,38 @@ export class AgentRuntimeReconstructionService {
 		);
 	}
 
+	private wrapConfiguredApproval(
+		tool: BuiltTool,
+		route: AgentApprovalRoute | undefined,
+		options: RuntimeReconstructionOptions,
+	): BuiltTool {
+		const effective = route;
+		if (!effective || effective.type === 'conversation') {
+			return withApprovalDescription(wrapToolForApproval(tool, { requireApproval: true }));
+		}
+		return withApprovalDescription(
+			Container.get(AgentDecisionWorkflowService).wrap(
+				tool,
+				effective,
+				options.config,
+				{
+					agentId: options.memoryOwnerAgentId,
+					projectId: options.projectId,
+					published: options.runType === 'production',
+					integrations: options.credentialIntegrations,
+					integrationType: options.integrationType,
+					userId: options.attributionUserId ?? options.user?.id,
+					previewChat: options.previewChat,
+					publishedN8nChat:
+						options.runType === 'production' &&
+						options.integrationType === N8N_CHAT_INTEGRATION_TYPE &&
+						options.attributionUserId !== undefined,
+				},
+				options.toolCodeByName,
+			),
+		);
+	}
+
 	private makeMcpClientFactory(
 		options: RuntimeReconstructionOptions,
 		aiMcpFetch: ReturnType<typeof createAiMcpFetch>,
@@ -896,6 +940,8 @@ export class AgentRuntimeReconstructionService {
 			options;
 		return async (server: AgentJsonMcpServerConfig) =>
 			await buildMcpClientForServer(server, {
+				wrapApproval: (tool: BuiltTool) =>
+					this.wrapConfiguredApproval(tool, server.approvalRoute, options),
 				credentialProvider,
 				// Inline agents have no checkpoint storage, and their schema rejects approval policies.
 				nonInterrupting: runtimeProfile === 'inline',
@@ -1103,7 +1149,16 @@ export class AgentRuntimeReconstructionService {
 		// Inline agents have no entity for checkpoint or attachment rows.
 		if (runtimeProfile === 'inline') return;
 		if (!agent.hasCheckpointStorage()) {
-			agent.checkpoint(this.n8nCheckpointStorage.getStorage(agentId));
+			agent.checkpoint(
+				this.n8nCheckpointStorage.getStorage(
+					agentId,
+					getAgentRuntimeDefinitionHash(
+						config,
+						params.toolCodeByName,
+						params.credentialIntegrations,
+					),
+				),
+			);
 		}
 		const provider = getProviderPrefix(config.model);
 		agent.fileStore(this.agentChatAttachmentService.getFileStore({ agentId, projectId }, provider));
@@ -1220,8 +1275,22 @@ export class AgentRuntimeReconstructionService {
 
 		for (const descriptor of descriptors) {
 			agent.tool(createIntegrationContextTool({ descriptor, queryExecutor }));
+			const actionTool = createIntegrationActionTool({
+				descriptor,
+				projectId,
+				messageContextStore,
+				actionExecutor,
+			});
 			agent.tool(
-				createIntegrationActionTool({ descriptor, messageContextStore, actionExecutor, projectId }),
+				descriptor.approval
+					? withApprovalDescription(actionTool.build(), (input) => {
+							if (!isRecord(input)) return false;
+							const action = descriptor.actionToolDefinitions.find(
+								(entry) => entry.name === input.action,
+							)?.name;
+							return action !== undefined && actionNeedsApproval(descriptor.approval, action);
+						})
+					: actionTool,
 			);
 		}
 	}

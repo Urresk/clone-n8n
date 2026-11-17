@@ -221,6 +221,7 @@ describe('AgentRepository', () => {
 				mock<AgentSetupCompletionService>(),
 				mock(),
 				definitionService,
+				mock(),
 				mock<GlobalConfig>({ tags: { disabled: false } }),
 				mock<TagService>(),
 				mock(),
