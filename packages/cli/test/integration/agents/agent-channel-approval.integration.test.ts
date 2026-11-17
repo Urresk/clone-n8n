@@ -11,17 +11,20 @@ import {
 } from '@n8n/backend-test-utils';
 import type { AgentsConfig } from '@n8n/config';
 import {
+	ExecutionRepository,
 	SharedWorkflowRepository,
 	WorkflowRepository,
 	WorkflowPublishedVersionRepository,
 } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { generateNanoId } from '@n8n/utils/generate-nano-id';
+import { OperationalError } from '@n8n/errors';
+import { WaitTracker } from '@/wait-tracker';
 import { MockLanguageModelV3, convertArrayToReadableStream } from 'ai/test';
 import type { ActionEvent } from 'chat';
 import { InstanceSettings } from 'n8n-core';
 import type { IExecuteFunctions, INodeType, INodeTypeData } from 'n8n-workflow';
-import { NodeConnectionTypes } from 'n8n-workflow';
+import { NodeConnectionTypes, WAIT_INDEFINITELY } from 'n8n-workflow';
 import { mock } from 'vitest-mock-extended';
 import { z } from 'zod';
 
@@ -128,7 +131,7 @@ const channel: INodeType = {
 			approve: this.getApprovalCallbackReference('approve'),
 			reject: this.getApprovalCallbackReference('decline'),
 		});
-		await this.putExecutionToWait(new Date('9999-01-01'));
+		await this.putExecutionToWait(WAIT_INDEFINITELY);
 		return [this.getInputData()];
 	},
 };
@@ -163,10 +166,12 @@ describe('Durable channel approval lifecycle', () => {
 	});
 	afterAll(async () => await testDb.terminate());
 	beforeEach(() => send.mockClear());
+	afterEach(() => vi.restoreAllMocks());
 
 	it.each([
 		{ approved: true, destination: 'user', method: 'channel' },
 		{ approved: false, destination: 'user', method: 'channel' },
+		{ approved: true, destination: 'user', method: 'channel', deferResume: true },
 		{ approved: true, destination: 'channel', method: 'channel' },
 		{ approved: false, destination: 'channel', method: 'channel' },
 		{ approved: true, destination: 'channel', method: 'workflow' },
@@ -438,6 +443,14 @@ describe('Durable channel approval lifecycle', () => {
 				return;
 			}
 
+			const coreTracker = Container.get(WaitTracker);
+			const immediateResume =
+				'deferResume' in scenario
+					? vi
+							.spyOn(coreTracker, 'startExecution')
+							.mockRejectedValueOnce(new OperationalError('Unavailable'))
+					: undefined;
+
 			expect(
 				await channels.respond(
 					agent.id,
@@ -446,6 +459,29 @@ describe('Durable channel approval lifecycle', () => {
 					event,
 				),
 			).toBe(approved || sequence);
+			if (immediateResume) {
+				immediateResume.mockRestore();
+				const saved = await executions.findSingleExecution(childId, {
+					includeData: true,
+					unflattenData: true,
+				});
+				expect(saved?.status).toBe('waiting');
+				expect(saved?.data.executionData?.nodeExecutionStack[0].node.disabled).toBe(true);
+				expect(
+					(await Container.get(ExecutionRepository).getWaitingExecutions()).map(({ id }) => id),
+				).toContain(childId);
+				const opposite = { ...event, actionId: send.mock.calls[0][0].reject };
+				expect(
+					await channels.respond(
+						agent.id,
+						project.id,
+						{ type: 'slack', credentialId: 'credential' },
+						opposite,
+					),
+				).toBe('unavailable');
+				// A later poll uses only the durable execution ID, with no response held in memory.
+				await coreTracker.startExecution(childId);
+			}
 			await Container.get(ActiveExecutions).getPostExecutePromise(childId);
 			expect(await executions.findSingleExecution(childId)).toMatchObject({ status: 'success' });
 			// Rebuild the Agent to prove that only the durable checkpoint carries the continuation.
