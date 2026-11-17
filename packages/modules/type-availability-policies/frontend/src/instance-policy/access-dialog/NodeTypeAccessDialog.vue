@@ -11,6 +11,7 @@ import { useI18n } from '@n8n/i18n';
 import { computed } from 'vue';
 
 import TypeAccessSection from './TypeAccessSection.vue';
+import { focusDialogContent } from './focusDialogContent';
 import { useRelatedTypeIndex } from './useRelatedTypeIndex';
 import { useTypeAccessEdits } from './useTypeAccessEdits';
 import { ANY_CREDENTIAL_NODE_TYPES } from '../../related-types/relatedTypes.constants';
@@ -52,6 +53,7 @@ const tabs = computed(() => [
 		"
 		size="xlarge"
 		data-test-id="node-type-access-dialog"
+		@open-auto-focus="focusDialogContent"
 	>
 		<N8nDialogBody :class="$style.body">
 			<TypeAccessSection

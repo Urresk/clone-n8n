@@ -4,6 +4,7 @@ import { useI18n, type BaseTextKey } from '@n8n/i18n';
 import { computed } from 'vue';
 
 import TypeAccessSection from './TypeAccessSection.vue';
+import { focusDialogContent } from './focusDialogContent';
 import { useRelatedTypeIndex } from './useRelatedTypeIndex';
 import { getCredentialRelatedTypes } from '../../related-types/relatedTypes';
 
@@ -34,6 +35,7 @@ const descriptionKey = computed<BaseTextKey>(() =>
 		"
 		size="xlarge"
 		data-test-id="credential-type-access-dialog"
+		@open-auto-focus="focusDialogContent"
 	>
 		<N8nDialogBody :class="$style.body">
 			<TypeAccessSection
