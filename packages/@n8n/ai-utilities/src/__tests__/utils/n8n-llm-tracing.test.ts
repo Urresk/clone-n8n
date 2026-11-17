@@ -511,6 +511,71 @@ describe('N8nLlmTracing', () => {
 			});
 		});
 
+		it('should read message usage_metadata when llmOutput has no tokenUsage', async () => {
+			// Bedrock Converse shape: no llmOutput, empty text, usage on the message
+			const tracer = new N8nLlmTracing(mockExecutionFunctions);
+			const runId = 'run-123';
+			tracer.runsMap[runId] = { index: 0, messages: ['Test prompt'], options: {} };
+
+			const output: LLMResult = {
+				generations: [
+					[
+						{
+							text: '',
+							message: new AIMessage({
+								content: [{ type: 'text', text: 'Response' }],
+								usage_metadata: { input_tokens: 11, output_tokens: 5, total_tokens: 16 },
+							}),
+						} as ChatGeneration,
+					],
+				],
+			};
+
+			await tracer.handleLLMEnd(output, runId);
+
+			const json = mockExecutionFunctions.addOutputData.mock.calls[0][2] as Array<
+				Array<{ json: Record<string, unknown> }>
+			>;
+			expect(json[0][0].json.tokenUsage).toEqual({
+				completionTokens: 5,
+				promptTokens: 11,
+				totalTokens: 16,
+			});
+			expect(json[0][0].json.tokenUsageEstimate).toBeUndefined();
+		});
+
+		it('should estimate from the message text blocks when no usage is reported', async () => {
+			// Bedrock extended-thinking shape without usage: empty text, reasoning + text blocks
+			const tracer = new N8nLlmTracing(mockExecutionFunctions);
+			const runId = 'run-123';
+			tracer.runsMap[runId] = { index: 0, messages: ['Test prompt'], options: {} };
+			estimateTokensFromStringList.mockResolvedValue(7);
+
+			const output: LLMResult = {
+				generations: [
+					[
+						{
+							text: '',
+							message: new AIMessage({
+								content: [
+									{ type: 'reasoning_content', reasoning_content: { text: 'Thinking' } },
+									{ type: 'text', text: 'Final answer' },
+								],
+							}),
+						} as ChatGeneration,
+					],
+				],
+			};
+
+			await tracer.handleLLMEnd(output, runId);
+
+			expect(estimateTokensFromStringList).toHaveBeenCalledWith(['Final answer'], 'gpt-4o');
+			const json = mockExecutionFunctions.addOutputData.mock.calls[0][2] as Array<
+				Array<{ json: Record<string, unknown> }>
+			>;
+			expect(json[0][0].json.tokenUsageEstimate).toMatchObject({ completionTokens: 7 });
+		});
+
 		it('should use token estimates when actual tokens not available', async () => {
 			const tracer = new N8nLlmTracing(mockExecutionFunctions);
 
@@ -911,6 +976,27 @@ describe('N8nLlmTracing', () => {
 				['Response 1', 'Response 2'],
 				'gpt-4o',
 			);
+		});
+
+		it('should estimate from the message text blocks when generation text is empty', async () => {
+			const tracer = new N8nLlmTracing(mockExecutionFunctions);
+			const generations: LLMResult['generations'] = [
+				[
+					{
+						text: '',
+						message: new AIMessage({
+							content: [
+								{ type: 'reasoning_content', reasoning_content: { text: 'Thinking' } },
+								{ type: 'text', text: 'Final answer' },
+							],
+						}),
+					} as ChatGeneration,
+				],
+			];
+
+			await tracer.estimateTokensFromGeneration(generations);
+
+			expect(estimateTokensFromStringList).toHaveBeenCalledWith(['Final answer'], 'gpt-4o');
 		});
 
 		it('should estimate tokens from string list', async () => {
