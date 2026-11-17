@@ -704,6 +704,7 @@ export class McpService {
 			this.telemetry,
 			this,
 			this.logger,
+			allowedToolNames?.has('get_workflow_execution') ?? true,
 		);
 		registerIfAllowed(testWorkflowTool);
 
