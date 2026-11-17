@@ -1,4 +1,4 @@
-import type { Logger } from '@n8n/backend-common';
+import type { LicenseState, Logger } from '@n8n/backend-common';
 import type { OutboundHttp } from '@n8n/backend-network';
 import {
 	InstanceRegistryProxyService,
@@ -77,6 +77,7 @@ describe('Telemetry', () => {
 			globalConfig,
 			mock(),
 			mock(),
+			mock<LicenseState>(),
 		);
 		// @ts-expect-error Assigning to private property
 		telemetry.rudderStack = mockRudderStack;
@@ -114,6 +115,7 @@ describe('Telemetry', () => {
 				initConfig,
 				mock(),
 				outboundHttp,
+				mock<LicenseState>(),
 			);
 		});
 
@@ -979,6 +981,7 @@ describe('Telemetry', () => {
 				globalConfig,
 				mock(),
 				mock(),
+				mock<LicenseState>(),
 			);
 			// @ts-expect-error Assigning to private property
 			validationTelemetry.rudderStack = mockRudderStack;
@@ -1011,6 +1014,7 @@ describe('Telemetry', () => {
 				globalConfig,
 				mock(),
 				mock(),
+				mock<LicenseState>(),
 			);
 
 			uninitializedTelemetry.track(TEST_TELEMETRY.USER_TESTED_REGISTRY_ENTRY, {
@@ -1040,6 +1044,7 @@ describe('Telemetry', () => {
 					globalConfig,
 					mock(),
 					mock(),
+					mock<LicenseState>(),
 				);
 				// @ts-expect-error Assigning to private property
 				instance.rudderStack = mockRudderStack;
@@ -1083,7 +1088,6 @@ describe('Telemetry', () => {
 	describe('sendPulsePacket', () => {
 		const license = mock<License>({
 			getPlanName: () => 'enterprise',
-			getTriggerLimit: () => 400,
 		});
 		const workflowRepository = mock<WorkflowRepository>({
 			getActiveTriggerCount: async () => 7,
@@ -1103,6 +1107,7 @@ describe('Telemetry', () => {
 				globalConfig,
 				mock(),
 				mock(),
+				mock<LicenseState>({ getMaxActiveWorkflows: () => 400 }),
 			);
 		});
 

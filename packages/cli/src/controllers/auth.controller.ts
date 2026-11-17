@@ -3,9 +3,9 @@ import {
 	ResolveSignupTokenQueryDto,
 	SSO_LOGIN_REQUIRED_ERROR_CODE,
 } from '@n8n/api-types';
-import { Logger } from '@n8n/backend-common';
+import { LicenseState, Logger } from '@n8n/backend-common';
 import { EventService, PostHogClient } from '@n8n/backend-services';
-import { Time } from '@n8n/constants';
+import { Time, UNLIMITED_LICENSE_QUOTA } from '@n8n/constants';
 import type { Person, PublicUser, AuthProviderType } from '@n8n/db';
 import {
 	UserRepository,
@@ -30,7 +30,6 @@ import { AuthHandlerRegistry } from '@/auth/auth-handler.registry';
 import { AuthService } from '@/auth/auth.service';
 import { RESPONSE_ERROR_MESSAGES } from '@/constants';
 import { AuthError, BadRequestError, ForbiddenError, InternalServerError } from '@n8n/errors';
-import { License } from '@/license';
 import { MfaService } from '@/mfa/mfa.service';
 import { AuthlessRequest } from '@/requests';
 import { UserService } from '@/services/user.service';
@@ -49,7 +48,7 @@ export class AuthController {
 		private readonly authService: AuthService,
 		private readonly mfaService: MfaService,
 		private readonly userService: UserService,
-		private readonly license: License,
+		private readonly license: LicenseState,
 		private readonly userRepository: UserRepository,
 		private readonly personRepository: PersonRepository,
 		private readonly eventService: EventService,
@@ -233,8 +232,7 @@ export class AuthController {
 			payload.token,
 		);
 
-		// oxlint-disable-next-line typescript/no-deprecated
-		const isWithinUsersLimit = this.license.isWithinUsersLimit();
+		const isWithinUsersLimit = this.license.getMaxUsers() === UNLIMITED_LICENSE_QUOTA;
 
 		if (!isWithinUsersLimit) {
 			this.logger.debug('Request to resolve signup token failed because of users quota reached', {

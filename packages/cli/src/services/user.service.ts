@@ -1,5 +1,5 @@
 import type { RoleChangeRequestDto } from '@n8n/api-types';
-import { Logger } from '@n8n/backend-common';
+import { LicenseState, Logger } from '@n8n/backend-common';
 import {
 	EventService,
 	UrlService,
@@ -8,6 +8,7 @@ import {
 	PostHogClient,
 } from '@n8n/backend-services';
 import { GlobalConfig } from '@n8n/config';
+import { UNLIMITED_LICENSE_QUOTA } from '@n8n/constants';
 import type { AuthIdentity, OperationContext, Person, PublicUser } from '@n8n/db';
 import {
 	isPerson,
@@ -54,7 +55,6 @@ import {
 import { loginIdOf } from '@/events/login-id';
 import { ExternalHooks } from '@/external-hooks';
 import type { Invitation } from '@/interfaces';
-import { License } from '@/license';
 import type { PolicyActor } from '@/policy/policy-enforcement-backend';
 import type { PublicApiCaller } from '@/public-api/public-api-client';
 import type { UserRequest } from '@/requests';
@@ -91,7 +91,7 @@ export class UserService {
 		private readonly globalConfig: GlobalConfig,
 		private readonly jwtService: JwtService,
 		private readonly projectService: ProjectService,
-		private readonly license: License,
+		private readonly license: LicenseState,
 		private readonly externalHooks: ExternalHooks,
 		private readonly sharedCredentialsRepository: SharedCredentialsRepository,
 		private readonly sharedWorkflowRepository: SharedWorkflowRepository,
@@ -594,8 +594,7 @@ export class UserService {
 
 		await this.assertInviteRolesAreNotManaged(invitations);
 
-		// oxlint-disable-next-line typescript/no-deprecated
-		if (!this.license.isWithinUsersLimit()) {
+		if (this.license.getMaxUsers() !== UNLIMITED_LICENSE_QUOTA) {
 			this.logger.debug(
 				'Request to send email invite(s) to user(s) failed because the user limit quota has been reached',
 			);
@@ -610,7 +609,6 @@ export class UserService {
 		}
 
 		const attributes = invitations.map(({ email, role }) => {
-			// oxlint-disable-next-line typescript/no-deprecated
 			if (role === 'global:admin' && !this.license.isAdvancedPermissionsLicensed()) {
 				throw new ForbiddenError(
 					'Cannot invite admin user without advanced permissions. Please upgrade to a license that includes this feature.',

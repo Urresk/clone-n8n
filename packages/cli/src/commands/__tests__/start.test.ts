@@ -1,6 +1,7 @@
 // Import zod alias support before importing Start command
 import '@/zod-alias-support';
 
+import { LicenseState } from '@n8n/backend-common';
 import { uninstallGlobalProxyAgent } from '@n8n/backend-network/testing';
 import { mockInstance } from '@n8n/backend-test-utils';
 import { AuthRolesService, DbConnection, DeploymentKeyRepository } from '@n8n/db';
@@ -60,8 +61,8 @@ mockInstance(CredentialsOverwrites);
 mockInstance(WaitTracker);
 const license = mockInstance(License, {
 	loadCertStr: async () => '',
-	isMultiMainLicensed: () => true,
 });
+const licenseState = mockInstance(LicenseState, { isMultiMainLicensed: vi.fn(() => true) });
 const multiMainSetup = mockInstance(MultiMainSetup);
 multiMainSetup.registerEventHandlers.mockReturnValue(undefined);
 const authHandlerRegistry = mockInstance(AuthHandlerRegistry);
@@ -143,6 +144,7 @@ describe('Start - AuthRolesService initialization', () => {
 		Container.set(DbConnection, dbConnection);
 		Container.set(InstanceSettings, instanceSettings);
 		Container.set(License, license);
+		Container.set(LicenseState, licenseState);
 		Container.set(ErrorReporter, errorReporter);
 		Container.set(NodeTypes, mockInstance(NodeTypes));
 		Container.set(ShutdownService, shutdownService);
@@ -378,7 +380,7 @@ describe('Start - AuthRolesService initialization', () => {
 		afterEach(() => {
 			vi.useRealTimers();
 			// Restore original mock so other tests aren't affected
-			license.isMultiMainLicensed = (() => true) as unknown as typeof license.isMultiMainLicensed;
+			licenseState.isMultiMainLicensed.mockReturnValue(true);
 		});
 
 		it('should retry and succeed when follower finds license cert on retry', async () => {
@@ -387,10 +389,7 @@ describe('Start - AuthRolesService initialization', () => {
 			start.globalConfig = multiMainConfig;
 
 			// First call returns false (no cert yet), second call returns true (leader wrote cert)
-			license.isMultiMainLicensed = vi
-				.fn()
-				.mockReturnValueOnce(false)
-				.mockReturnValue(true) as unknown as typeof license.isMultiMainLicensed;
+			licenseState.isMultiMainLicensed.mockReturnValueOnce(false).mockReturnValue(true);
 
 			const initPromise = start.init();
 
@@ -407,9 +406,7 @@ describe('Start - AuthRolesService initialization', () => {
 			// @ts-expect-error - Accessing protected property for testing
 			start.globalConfig = multiMainConfig;
 
-			license.isMultiMainLicensed = vi
-				.fn()
-				.mockReturnValue(false) as unknown as typeof license.isMultiMainLicensed;
+			licenseState.isMultiMainLicensed.mockReturnValue(false);
 
 			const initPromise = start.init().catch((error) => {
 				expect(error).toBeInstanceOf(FeatureNotLicensedError);
@@ -430,9 +427,7 @@ describe('Start - AuthRolesService initialization', () => {
 			// @ts-expect-error - Accessing protected property for testing
 			start.globalConfig = multiMainConfig;
 
-			license.isMultiMainLicensed = vi
-				.fn()
-				.mockReturnValue(false) as unknown as typeof license.isMultiMainLicensed;
+			licenseState.isMultiMainLicensed.mockReturnValue(false);
 
 			await expect(start.init()).rejects.toThrow(FeatureNotLicensedError);
 

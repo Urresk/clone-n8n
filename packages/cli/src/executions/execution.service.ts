@@ -1,6 +1,6 @@
 import type { DeleteExecutionsDto } from '@n8n/api-types';
 import { ExecutionRedactionQueryDtoSchema } from '@n8n/api-types';
-import { Logger } from '@n8n/backend-common';
+import { LicenseState, Logger } from '@n8n/backend-common';
 import {
 	EventService,
 	ExecutionRedactionServiceProxy,
@@ -61,7 +61,6 @@ import {
 	UserError,
 } from '@n8n/errors';
 import type { IExecutionFlattedResponse } from '@/interfaces';
-import { License } from '@/license';
 import { NodeTypes } from '@/node-types';
 import { userHasScopes } from '@/permissions.ee/check-access';
 import { ExecutionStopService } from '@/scaling/execution-stop.service';
@@ -135,7 +134,7 @@ export class ExecutionService {
 		private readonly waitTracker: WaitTracker,
 		private readonly workflowRunner: WorkflowRunner,
 		private readonly concurrencyControl: ConcurrencyControlService,
-		private readonly license: License,
+		private readonly license: LicenseState,
 		private readonly eventService: EventService,
 		private readonly executionRedactionServiceProxy: ExecutionRedactionServiceProxy,
 		private readonly executionStopService: ExecutionStopService,
@@ -507,8 +506,7 @@ export class ExecutionService {
 			}
 		}
 
-		// oxlint-disable-next-line typescript/no-deprecated
-		if (requestFilters?.metadata && !this.license.isAdvancedExecutionFiltersEnabled()) {
+		if (requestFilters?.metadata && !this.license.isAdvancedExecutionFiltersLicensed()) {
 			delete requestFilters.metadata;
 		}
 
