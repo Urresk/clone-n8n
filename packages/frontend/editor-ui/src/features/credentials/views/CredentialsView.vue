@@ -18,9 +18,9 @@ import { useProjectsStore } from '@/features/collaboration/projects/projects.sto
 import { useSettingsStore } from '@n8n/stores/settings.store';
 import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
 import { listenForModalChanges, useUIStore } from '@/app/stores/ui.store';
-import type { Project } from '@/features/collaboration/projects/projects.types';
+import type { Project, ProjectType } from '@/features/collaboration/projects/projects.types';
 import { isCredentialsResource } from '@/app/utils/typeGuards';
-import { useI18n } from '@n8n/i18n';
+import { useI18n, type BaseTextKey } from '@n8n/i18n';
 import { getResourcePermissions } from '@n8n/permissions';
 import pickBy from 'lodash/pickBy';
 import type { ICredentialType, ICredentialsDecrypted } from 'n8n-workflow';
@@ -31,7 +31,22 @@ import { useCredentialsStore } from '../credentials.store';
 import { useEnvironmentsStore } from '@/features/settings/environments.ee/environments.store';
 import { useDependencies } from '@/app/composables/useDependencies';
 import { useInstanceAiCredentialHelp } from '@/features/ai/instanceAi/composables/useInstanceAiCredentialHelp';
-import { useTypeAvailability } from '@n8n/frontend-module-type-availability-policies';
+import {
+	CauseCheckboxFilter,
+	getCurrentProjectRestrictionLookup,
+	getProjectRestrictionLookup,
+	onlyInstanceWideRestrictions,
+	useTypeAvailability,
+	useTypeAvailabilityPoliciesStore,
+	type TypeRestrictionLookup,
+} from '@n8n/frontend-module-type-availability-policies';
+import {
+	CREDENTIAL_TYPE_USABILITY_REASONS,
+	parseCredentialTypeUsabilityReasons,
+	useCredentialTypeUsability,
+	type CredentialTypeUsability,
+	type CredentialTypeUsabilityReason,
+} from '../composables/useCredentialTypeUsability';
 
 import { N8nCheckbox, N8nInputLabel, N8nOption, N8nSelect } from '@n8n/design-system';
 const props = defineProps<{
@@ -58,13 +73,23 @@ const telemetry = useTelemetry();
 const i18n = useI18n();
 const overview = useProjectPages();
 
+const USABILITY_REASON_LABEL_KEY: Record<CredentialTypeUsabilityReason, BaseTextKey> = {
+	typeRestricted: 'credentials.filters.cannotBeUsed.typeRestricted',
+	nodesRestricted: 'credentials.filters.cannotBeUsed.nodesRestricted',
+};
+
 type Filters = BaseFilters & {
 	type?: string[];
 	setupNeeded?: boolean;
+	cannotBeUsed?: CredentialTypeUsabilityReason[];
 	externalSecretsStore?: string;
 };
 const updateFilter = (state: Filters) => {
-	void router.replace({ query: pickBy(state) as LocationQueryRaw });
+	const query = pickBy({
+		...state,
+		cannotBeUsed: state.cannotBeUsed?.length ? state.cannotBeUsed.join(',') : undefined,
+	});
+	void router.replace({ query: query as LocationQueryRaw });
 };
 
 const onSearchUpdated = (search: string) => {
@@ -74,6 +99,7 @@ const onSearchUpdated = (search: string) => {
 const filters = ref<Filters>({
 	...route.query,
 	setupNeeded: route.query.setupNeeded?.toString() === 'true',
+	cannotBeUsed: parseCredentialTypeUsabilityReasons(route.query.cannotBeUsed),
 	...(route.query.externalSecretsStore
 		? { externalSecretsStore: route.query.externalSecretsStore.toString() }
 		: {}),
@@ -93,8 +119,90 @@ const needsSetup = (credential: ICredentialsResponse): boolean => {
 	return Object.values(dataObject).every((value) => !value || value === CREDENTIAL_EMPTY_VALUE);
 };
 
-const allCredentials = computed<Resource[]>(() =>
-	credentialsStore.allCredentials.map((credential) => ({
+const typeAvailabilityPoliciesStore = useTypeAvailabilityPoliciesStore();
+const { getCredentialTypeUsability } = useCredentialTypeUsability();
+
+const policyProjectId = computed(() => {
+	const { projectId } = route?.params ?? {};
+	return typeof projectId === 'string' ? projectId : projectsStore.personalProject?.id;
+});
+useTypeAvailability(policyProjectId);
+
+const homeProjectIds = computed(() =>
+	overview.isOverviewSubPage
+		? credentialsStore.allCredentials.flatMap((credential) =>
+				credential.homeProject && credential.homeProject.id !== policyProjectId.value
+					? [credential.homeProject.id]
+					: [],
+			)
+		: [],
+);
+
+watch(
+	homeProjectIds,
+	(projectIds) => {
+		if (projectIds.length) void typeAvailabilityPoliciesStore.fetchForProjects(projectIds);
+	},
+	{ immediate: true },
+);
+
+type ResolvedRestrictionLookup = { lookup: TypeRestrictionLookup; projectType?: ProjectType };
+
+function createRestrictionResolver(): (
+	credential: ICredentialsResponse,
+) => ResolvedRestrictionLookup {
+	const currentProject = getCurrentProjectRestrictionLookup();
+	if (!overview.isOverviewSubPage) return () => ({ lookup: currentProject });
+
+	const instanceWide = onlyInstanceWideRestrictions(currentProject);
+	const isPolicyProjectLoaded =
+		typeAvailabilityPoliciesStore.loadedProjectId === policyProjectId.value;
+	const lookupByProjectId = new Map<string, TypeRestrictionLookup | null>();
+	return (credential: ICredentialsResponse) => {
+		const { homeProject } = credential;
+		if (!homeProject) return { lookup: instanceWide };
+
+		if (!lookupByProjectId.has(homeProject.id)) {
+			lookupByProjectId.set(
+				homeProject.id,
+				homeProject.id === policyProjectId.value
+					? isPolicyProjectLoaded
+						? currentProject
+						: null
+					: getProjectRestrictionLookup(homeProject.id),
+			);
+		}
+		const lookup = lookupByProjectId.get(homeProject.id);
+		return lookup ? { lookup, projectType: homeProject.type } : { lookup: instanceWide };
+	};
+}
+
+const allCredentials = computed<Resource[]>(() => {
+	const resolve = typeAvailabilityPoliciesStore.isEnabled ? createRestrictionResolver() : null;
+	const usabilityByLookup = new Map<
+		TypeRestrictionLookup,
+		Map<string, CredentialTypeUsability | null>
+	>();
+
+	function restrictionOf(credential: ICredentialsResponse) {
+		if (!resolve) return {};
+
+		const { lookup, projectType } = resolve(credential);
+		let usabilityByType = usabilityByLookup.get(lookup);
+		if (!usabilityByType) {
+			usabilityByType = new Map();
+			usabilityByLookup.set(lookup, usabilityByType);
+		}
+		if (!usabilityByType.has(credential.type)) {
+			usabilityByType.set(credential.type, getCredentialTypeUsability(credential.type, lookup));
+		}
+		return {
+			restriction: usabilityByType.get(credential.type) ?? undefined,
+			restrictionProjectType: projectType,
+		};
+	}
+
+	return credentialsStore.allCredentials.map((credential) => ({
 		resourceType: 'credential',
 		id: credential.id,
 		name: credential.name,
@@ -111,8 +219,9 @@ const allCredentials = computed<Resource[]>(() =>
 		isResolvable: credential.isResolvable,
 		connectedByMe: credential.connectedByMe,
 		type: credential.type,
-	})),
-);
+		...restrictionOf(credential),
+	}));
+});
 
 const allCredentialTypes = computed<ICredentialType[]>(() => credentialsStore.allCredentialTypes);
 
@@ -190,6 +299,11 @@ const onFilter = (resource: Resource, newFilters: BaseFilters, matches: boolean)
 		matches = matches && resource.needsSetup;
 	}
 
+	if (typeAvailabilityPoliciesStore.isEnabled && filtersToApply.cannotBeUsed?.length) {
+		const reason = resource.restriction?.reason;
+		matches = matches && !!reason && filtersToApply.cannotBeUsed.includes(reason);
+	}
+
 	return matches;
 };
 
@@ -229,8 +343,19 @@ const maybeEditCredential = async () => {
 	}
 };
 
+// Policies can change between visits, so each visit fetches them again. A policy project that
+// is not loaded yet is already being fetched by `useTypeAvailability`.
+function refreshPolicies() {
+	if (typeAvailabilityPoliciesStore.loadedProjectId === policyProjectId.value) {
+		void typeAvailabilityPoliciesStore.reload();
+	} else {
+		typeAvailabilityPoliciesStore.clearProjectVerdicts();
+	}
+}
+
 const initialize = async () => {
 	loading.value = true;
+	refreshPolicies();
 	const isVarsEnabled =
 		useSettingsStore().isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Variables];
 
@@ -275,12 +400,6 @@ sourceControlStore.$onAction(({ name, after }) => {
 });
 
 watch(() => route?.params?.projectId, initialize);
-
-// A new credential goes to this project, so the new credential picker reads its policy.
-useTypeAvailability(() => {
-	const { projectId } = route?.params ?? {};
-	return typeof projectId === 'string' ? projectId : projectsStore.personalProject?.id;
-});
 
 watch(
 	() => props.credentialId,
@@ -384,6 +503,16 @@ onMounted(() => {
 					@update:model-value="setKeyValue('setupNeeded', $event)"
 				>
 				</N8nCheckbox>
+				<CauseCheckboxFilter
+					v-if="typeAvailabilityPoliciesStore.isEnabled"
+					class="mt-2xs"
+					:model-value="filters.cannotBeUsed ?? []"
+					:causes="CREDENTIAL_TYPE_USABILITY_REASONS"
+					:label="i18n.baseText('credentials.filters.cannotBeUsed')"
+					:cause-label="(reason) => i18n.baseText(USABILITY_REASON_LABEL_KEY[reason])"
+					test-id-prefix="credential-filter-cannot-be-used"
+					@update:model-value="setKeyValue('cannotBeUsed', $event)"
+				/>
 			</div>
 
 			<!-- secret store filter is only shown if query parameter is set in url

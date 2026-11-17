@@ -554,4 +554,69 @@ describe('CredentialCard', () => {
 			expect(emitted('click')).toBeUndefined();
 		});
 	});
+
+	describe('restricted credential', () => {
+		const typeRestricted = {
+			reason: 'typeRestricted' as const,
+			restriction: { name: 'slackApi', available: false, scope: 'instance' as const },
+		};
+		const nodesRestricted = {
+			reason: 'nodesRestricted' as const,
+			restriction: { name: 'n8n-nodes-base.slack', available: false, scope: 'instance' as const },
+			nodeTypeNames: ['Slack'],
+		};
+
+		it('shows no badge when nothing restricts the credential', () => {
+			const { queryByTestId } = renderComponent({ props: { data: createCredential() } });
+
+			expect(queryByTestId('credential-card-restricted')).not.toBeInTheDocument();
+		});
+
+		it.each([typeRestricted, nodesRestricted])(
+			'shows the Restricted badge when the $reason',
+			(restriction) => {
+				const { getByTestId } = renderComponent({
+					props: { data: createCredential({ type: 'slackApi', restriction }) },
+				});
+
+				expect(getByTestId('credential-card-restricted')).toHaveTextContent('Restricted');
+			},
+		);
+
+		it('still opens a credential of a blocked type', async () => {
+			const { getByRole, emitted } = renderComponent({
+				props: {
+					data: createCredential({ id: 'cred-1', name: 'Slack', restriction: typeRestricted }),
+				},
+			});
+
+			await userEvent.click(getByRole('heading', { name: /Slack/ }));
+
+			expect(emitted('click')).toEqual([['cred-1']]);
+		});
+
+		it('does not open the credential on a press of the badge', async () => {
+			const { getByTestId, emitted } = renderComponent({
+				props: { data: createCredential({ id: 'cred-1', restriction: typeRestricted }) },
+			});
+
+			await userEvent.click(getByTestId('credential-card-restricted'));
+
+			expect(emitted('click')).toBeUndefined();
+		});
+
+		it.each([typeRestricted, nodesRestricted])('dims a $reason credential', (restriction) => {
+			const { container } = renderComponent({
+				props: { data: createCredential({ restriction }) },
+			});
+
+			expect(container.firstElementChild?.className).toMatch(/restricted/);
+		});
+
+		it('does not dim a usable credential', () => {
+			const { container } = renderComponent({ props: { data: createCredential() } });
+
+			expect(container.firstElementChild?.className).not.toMatch(/restricted/);
+		});
+	});
 });

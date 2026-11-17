@@ -18,18 +18,22 @@ export {
 	describeTypeRestriction,
 	describeRestrictedNodeTypes,
 	getCredentialTypeRestriction,
+	getCurrentProjectRestrictionLookup,
 	getNodeTypeRestriction,
 	getNodeTypeRestrictionKind,
+	getProjectRestrictionLookup,
 	getRestrictionMessage,
 	getViolationVerdict,
 	collectRestrictedNodeTypes,
 	isNodeTypeRestricted,
+	onlyInstanceWideRestrictions,
 	useCredentialTypeRestriction,
 	useNodeTypeRestriction,
 	useRestrictionContact,
 	type RestrictedCalloutSurface,
 	type RestrictionMessage,
 	type TypeRestriction,
+	type TypeRestrictionLookup,
 } from './composables/useNodeTypeRestriction';
 export {
 	describeSubWorkflowRestriction,
@@ -50,6 +54,7 @@ export {
 } from './policy-violations/policyViolations';
 export { parseExecutionBlockCauses } from './wont-execute/wontExecute';
 export { default as WontExecuteFilter } from './wont-execute/WontExecuteFilter.vue';
+export { default as CauseCheckboxFilter } from './components/CauseCheckboxFilter.vue';
 export { default as WontExecuteCallout } from './wont-execute/WontExecuteCallout.vue';
 export { default as PolicyViolationList } from './policy-violations/PolicyViolationList.vue';
 export { default as PolicyViolationToastBody } from './policy-violations/PolicyViolationToastBody.vue';
